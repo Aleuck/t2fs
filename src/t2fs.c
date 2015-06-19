@@ -29,6 +29,35 @@ void read_block(int idx, char* buffer)
     memcpy(buffer+SECTOR_SIZE*3, sector_buffer, SECTOR_SIZE);
 }
 
+/**
+ * Funcao que retorna o estado de um bloco:
+ * 1: Usado, 0: Livre, -1: Erro na funcao
+ */
+// TODO: Considera que todos os blocos podem ser representados em um bloco.
+//       Ampliar isso para o caso generico de mais blocos.
+//       Os printfs so servem para debug, podem ser retirados.
+int get_block_state(int block)
+{
+    // Bloco em que esta localizado o bitmap de blocos
+    DWORD bitmap_block = superBloco.BitmapBlocks;
+    printf("\nO bitmap de blocos esta localizado no bloco: %d\n", bitmap_block);
+    // Cada char contem 8 bits, portanto dividimos o numero de bloco por 8.
+    int bitmap_size = superBloco.NofBlocks / 8;
+    printf("O tamanho do bitmap eh: %d\n", bitmap_size);
+
+    int bit;
+    int section = block / 8; // Que posicao i do buffer[i] o bloco se encontra.
+    int offset  = block % 8; // Que deslocamento dentro dos 8 bits o bloco tem.
+    printf("secao: %d\noffset: %d\n", section, offset);
+
+    char buffer[BLOCK_SIZE];
+    read_block(bitmap_block, buffer);
+
+    bit = (buffer[section] >> (7 - offset)) & 1;
+
+    return bit;
+}
+
 /* Nao sei se essa funcao tem alguma utilidade */
 long unsigned int number_of_sectors()
 {
@@ -99,6 +128,8 @@ int identify2(char *name, int size) {
         printf("\n**Size of the buffer passed is smaller "
                "than the identification string**\n\n");
     }
+
+    printf("bit = %d\n", get_block_state(72));
     return 0;
 }
 
