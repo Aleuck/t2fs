@@ -8,11 +8,47 @@
 
 struct t2fs_superbloco superBloco;
 
-/* Funcao que le um bloco do disco. Buffer deve ter obrigatoriamente
- * o tamanho de BLOCK_SIZE
+/**
+ *  Funcao que escreve um bloco no disco. Buffer deve ter obrigatoriamente
+ *  o tamanho de BLOCK_SIZE.
+ *  Retorna 0 caso não ocorrer nenhum erro, -1 caso contrário.
  */
-void read_block(int idx, char* buffer)
+// TODO: Fazer testes
+int write_block(int idx, char* buffer)
 {
+    if (idx >= superBloco.NofBlocks) {
+        printf("ERRO: Tentando escrever no bloco %d", idx);
+        return -1;
+    }
+    int sector1 = idx*4;
+    int sector2 = sector1+1;
+    int sector3 = sector2+1;
+    int sector4 = sector3+1;
+    char sector_buffer[SECTOR_SIZE];
+
+    memcpy(sector_buffer, buffer, SECTOR_SIZE);
+    write_sector(sector1, sector_buffer);
+    memcpy(sector_buffer, buffer+SECTOR_SIZE, SECTOR_SIZE);
+    write_sector(sector2, sector_buffer);
+    memcpy(sector_buffer, buffer+SECTOR_SIZE*2, SECTOR_SIZE);
+    write_sector(sector3, sector_buffer);
+    memcpy(sector_buffer, buffer+SECTOR_SIZE*3, SECTOR_SIZE);
+    write_sector(sector4, sector_buffer);
+
+    return 0;
+}
+
+/**
+ *  Funcao que le um bloco do disco. Buffer deve ter obrigatoriamente
+ *  o tamanho de BLOCK_SIZE.
+ *  Retorna 0 caso não ocorrer nenhum erro, -1 caso contrário.
+ */
+int read_block(int idx, char* buffer)
+{
+    if (idx >= superBloco.NofBlocks) {
+        printf("ERRO: Tentando ler bloco %d", idx);
+        return -1;
+    }
     int sector1 = idx*4;
     int sector2 = sector1+1;
     int sector3 = sector2+1;
@@ -27,6 +63,8 @@ void read_block(int idx, char* buffer)
     memcpy(buffer+SECTOR_SIZE*2, sector_buffer, SECTOR_SIZE);
     read_sector(sector4, sector_buffer);
     memcpy(buffer+SECTOR_SIZE*3, sector_buffer, SECTOR_SIZE);
+
+    return 0;
 }
 
 /**
