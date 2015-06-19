@@ -1,5 +1,3 @@
-
-
 #ifndef __LIBT2FS___
 #define __LIBT2FS___
 
@@ -22,10 +20,10 @@ struct t2fs_superbloco {
     DWORD   DiskSize;       /* Tamanho total da partição T2FS, incluindo o tamanho do superblock. */
     DWORD   NofBlocks;      /* Quantidade total de blocos de dados na partição T2FS (1024 blocos). */
     DWORD   BlockSize;      /* Tamanho de um bloco.*/
-    DWORD   BitmapBlocks;	/* Primeiro bloco lógico do bitmap de blocos livres e ocupados*/
-    DWORD   BitmapInodes;	/* Primeiro bloco lógico do bitmap de i-nodes livres e ocupados.*/
-    DWORD   InodeBlock;		/* Primeiro bloco lógico da área de i-nodes*/
-    DWORD   FirstDataBlock;	/* Primeiro bloco lógico da área de blocos de dados.*/
+    DWORD   BitmapBlocks;   /* Primeiro bloco lógico do bitmap de blocos livres e ocupados*/
+    DWORD   BitmapInodes;   /* Primeiro bloco lógico do bitmap de i-nodes livres e ocupados.*/
+    DWORD   InodeBlock;     /* Primeiro bloco lógico da área de i-nodes*/
+    DWORD   FirstDataBlock; /* Primeiro bloco lógico da área de blocos de dados.*/
 } __attribute__((packed));
 
 /** Registro de diretório (entrada de diretório) */

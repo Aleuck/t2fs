@@ -1,16 +1,56 @@
 #include <stdio.h>
 #include <stdint-gcc.h>
 #include <string.h>
-#include "t2fs.h"
-#include "apidisk.h"
+#include "../include/t2fs.h"
+#include "../include/apidisk.h"
+
+#define BLOCK_SIZE (4 * SECTOR_SIZE)
 
 struct t2fs_superbloco superBloco;
 
-void checkSuperBloco() {
+/* Funcao que le um bloco do disco. Buffer deve ter obrigatoriamente
+ * o tamanho de BLOCK_SIZE
+ */
+void read_block(int idx, char* buffer)
+{
+    int sector1 = idx*4;
+    int sector2 = sector1+1;
+    int sector3 = sector2+1;
+    int sector4 = sector3+1;
+    char sector_buffer[SECTOR_SIZE];
+
+    read_sector(sector1, sector_buffer);
+    memcpy(buffer, sector_buffer, SECTOR_SIZE);
+    read_sector(sector2, sector_buffer);
+    memcpy(buffer+SECTOR_SIZE, sector_buffer, SECTOR_SIZE);
+    read_sector(sector3, sector_buffer);
+    memcpy(buffer+SECTOR_SIZE*2, sector_buffer, SECTOR_SIZE);
+    read_sector(sector4, sector_buffer);
+    memcpy(buffer+SECTOR_SIZE*3, sector_buffer, SECTOR_SIZE);
+}
+
+/* Nao sei se essa funcao tem alguma utilidade */
+long unsigned int number_of_sectors()
+{
+    char buffer[SECTOR_SIZE];
+    long unsigned int i = 0;
+    long unsigned int sectors;
+    while (read_sector(i, buffer) == 0) {
+        i++;
+    }
+    sectors = i-1;
+
+    return sectors;
+}
+
+void checkSuperBloco()
+{
     if (superBloco.DiskSize == 0) {
 
-        char bufferSuperBloco[SECTOR_SIZE];
-        read_sector(0, bufferSuperBloco);
+        // Tamanho do Bloco e 4x o tamanho do Setor
+        char bufferSuperBloco[BLOCK_SIZE];
+        read_block(0, bufferSuperBloco);
+
         strncpy( superBloco.Id, bufferSuperBloco, 4);
         superBloco.Version =        bufferSuperBloco[4] + (bufferSuperBloco[5] << 8);
         superBloco.SuperBlockSize = bufferSuperBloco[6] + (bufferSuperBloco[7] << 8);
@@ -62,72 +102,88 @@ int identify2(char *name, int size) {
     return 0;
 }
 
-FILE2 create2(char *filename) {
+FILE2 create2(char *filename)
+{
+    checkSuperBloco();
+
+
+    return 0;
+}
+
+int delete2(char *filename)
+{
     checkSuperBloco();
     return 0;
 }
 
-int delete2(char *filename) {
+FILE2 open2(char *filename)
+{
     checkSuperBloco();
     return 0;
 }
 
-FILE2 open2(char *filename) {
+int close2(FILE2 handle)
+{
     checkSuperBloco();
     return 0;
 }
 
-int close2(FILE2 handle) {
+int read2(FILE2 handle, char *buffer, int size)
+{
     checkSuperBloco();
     return 0;
 }
 
-int read2(FILE2 handle, char *buffer, int size) {
+int write2(FILE2 handle, char *buffer, int size)
+{
     checkSuperBloco();
     return 0;
 }
 
-int write2(FILE2 handle, char *buffer, int size) {
+int seek2(FILE2 handle, unsigned int offset)
+{
     checkSuperBloco();
     return 0;
 }
 
-int seek2(FILE2 handle, unsigned int offset) {
+int mkdir2(char *pathname)
+{
     checkSuperBloco();
     return 0;
 }
 
-int mkdir2(char *pathname) {
+int rmdir2(char *pathname)
+{
     checkSuperBloco();
     return 0;
 }
 
-int rmdir2(char *pathname) {
+DIR2 opendir2(char *pathname)
+{
     checkSuperBloco();
     return 0;
 }
 
-DIR2 opendir2(char *pathname) {
+int readdir2(DIR2 handle, DIRENT2 *dentry)
+{
     checkSuperBloco();
     return 0;
 }
 
-int readdir2(DIR2 handle, DIRENT2 *dentry) {
+int closedir2(DIR2 handle)
+{
     checkSuperBloco();
     return 0;
 }
 
-int closedir2(DIR2 handle) {
+int chdir2(char *pathname)
+{
     checkSuperBloco();
     return 0;
 }
 
-int chdir2(char *pathname) {
-    checkSuperBloco();
-    return 0;
-}
-
-int getcwd2(char *pathname, int size) {
+int getcwd2(char *pathname, int size)
+{
     checkSuperBloco();
     return 0;
 }
