@@ -7,7 +7,7 @@
 struct t2fs_superbloco superBloco;
 
 void checkSuperBloco() {
-    if (superBloco.DiskSize == 0){
+    if (superBloco.DiskSize == 0) {
 
         char bufferSuperBloco[SECTOR_SIZE];
         read_sector(0, bufferSuperBloco);
@@ -25,7 +25,7 @@ void checkSuperBloco() {
     }
 }
 
-void printSuperBloco(){
+void printSuperBloco() {
     checkSuperBloco();
 
     printf("Id: %4.4s\n", superBloco.Id);
@@ -41,12 +41,24 @@ void printSuperBloco(){
 }
 
 int identify2(char *name, int size) {
+    int i = 0;
+    char ids[] = "Alexandre Leuck (...), Gianei Sebastiany (213502)"
+        " e Leonardo Hahn (207684)";
+
     checkSuperBloco();
     printSuperBloco();
 
-    //TODO
-    printf("%s", "Gianei - 213502\n\0");
-
+    //TODO: Catch possible errors
+    while (ids[i] != '\0') {
+        if (i < size) {
+            name[i] = ids[i];
+        }
+        i++;
+    }
+    if (i > size) {
+        printf("\n**Size of the buffer passed is smaller "
+               "than the identification string**\n\n");
+    }
     return 0;
 }
 
