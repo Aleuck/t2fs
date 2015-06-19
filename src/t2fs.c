@@ -36,8 +36,12 @@ void read_block(int idx, char* buffer)
 // TODO: Considera que todos os blocos podem ser representados em um bloco.
 //       Ampliar isso para o caso generico de mais blocos.
 //       Os printfs so servem para debug, podem ser retirados.
-int get_block_state(int block)
+int get_block_state(unsigned int block)
 {
+    if (block >= superBloco.NofBlocks) {
+        printf("get_block_state(..) com bloco maior do que o numero de blocos do disco.\n");
+        return -1;
+    }
     // Bloco em que esta localizado o bitmap de blocos
     DWORD bitmap_block = superBloco.BitmapBlocks;
     printf("\nO bitmap de blocos esta localizado no bloco: %d\n", bitmap_block);
