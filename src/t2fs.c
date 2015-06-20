@@ -4,9 +4,37 @@
 #include "../include/t2fs.h"
 #include "../include/apidisk.h"
 
-#define BLOCK_SIZE (4 * SECTOR_SIZE)
 
 struct t2fs_superbloco superBloco;
+int read_block(int id_block, char* buffer);
+
+/**
+ * Retorna a quantidade de setores que formam um bloco, de acordo com informações
+ * do superBloco.
+ * Considera que tamanho do bloco sempre é um fator de SECTOR_SIZE
+ */
+int get_sectors_per_block()
+{
+    return superBloco.BlockSize / SECTOR_SIZE;
+}
+
+void print_sector(int id_block)
+{
+    char buffer[superBloco.BlockSize];
+    read_block(id_block, buffer);
+
+    int i;
+    for (i = 0; i <= superBloco.BlockSize; i += 4){
+        if (i%16 == 0)
+            printf("\n");
+        printf("%02xh ", (BYTE) buffer[i]);
+        printf("%02xh ", (BYTE) buffer[i+1]);
+        printf("%02xh ", (BYTE) buffer[i+2]);
+        printf("%02xh ", (BYTE) buffer[i+3]);
+    }
+    printf("\n");
+}
+
 
 /**
  *  Funcao que escreve um bloco no disco. Buffer deve ter obrigatoriamente
@@ -14,55 +42,54 @@ struct t2fs_superbloco superBloco;
  *  Retorna 0 caso não ocorrer nenhum erro, -1 caso contrário.
  */
 // TODO: Fazer testes
-int write_block(int idx, char* buffer)
+int write_block(int id_block, char* buffer)
 {
-    if (idx >= superBloco.NofBlocks) {
-        printf("ERRO: Tentando escrever no bloco %d", idx);
+    if (id_block >= superBloco.NofBlocks) {
+        printf("ERRO: Tentando escrever no bloco %d", id_block);
         return -1;
     }
-    int sector1 = idx*4;
-    int sector2 = sector1+1;
-    int sector3 = sector2+1;
-    int sector4 = sector3+1;
-    char sector_buffer[SECTOR_SIZE];
 
-    memcpy(sector_buffer, buffer, SECTOR_SIZE);
-    write_sector(sector1, sector_buffer);
-    memcpy(sector_buffer, buffer+SECTOR_SIZE, SECTOR_SIZE);
-    write_sector(sector2, sector_buffer);
-    memcpy(sector_buffer, buffer+SECTOR_SIZE*2, SECTOR_SIZE);
-    write_sector(sector3, sector_buffer);
-    memcpy(sector_buffer, buffer+SECTOR_SIZE*3, SECTOR_SIZE);
-    write_sector(sector4, sector_buffer);
+    int sectors_per_block = get_sectors_per_block();
+    int start_sector = id_block * sectors_per_block;
+
+    int sector_I;
+    for (sector_I = 0; sector_I < sectors_per_block; sector_I++){
+        // lê direto para o buffer na posição correta
+        write_sector(start_sector + sector_I * sectors_per_block, buffer + SECTOR_SIZE * sector_I);
+    }
 
     return 0;
 }
 
-/**
- *  Funcao que le um bloco do disco. Buffer deve ter obrigatoriamente
- *  o tamanho de BLOCK_SIZE.
- *  Retorna 0 caso não ocorrer nenhum erro, -1 caso contrário.
- */
-int read_block(int idx, char* buffer)
-{
-    if (idx >= superBloco.NofBlocks) {
-        printf("ERRO: Tentando ler bloco %d", idx);
+
+int read_block(int id_block, char* buffer) {
+    if (id_block >= superBloco.NofBlocks) {
+        printf("ERRO: Tentando ler bloco %d", id_block);
         return -1;
     }
-    int sector1 = idx*4;
-    int sector2 = sector1+1;
-    int sector3 = sector2+1;
-    int sector4 = sector3+1;
-    char sector_buffer[SECTOR_SIZE];
 
-    read_sector(sector1, sector_buffer);
-    memcpy(buffer, sector_buffer, SECTOR_SIZE);
-    read_sector(sector2, sector_buffer);
-    memcpy(buffer+SECTOR_SIZE, sector_buffer, SECTOR_SIZE);
-    read_sector(sector3, sector_buffer);
-    memcpy(buffer+SECTOR_SIZE*2, sector_buffer, SECTOR_SIZE);
-    read_sector(sector4, sector_buffer);
-    memcpy(buffer+SECTOR_SIZE*3, sector_buffer, SECTOR_SIZE);
+    int sectors_per_block = get_sectors_per_block();
+    int start_sector = id_block * sectors_per_block;
+
+    int sector_I;
+    for (sector_I = 0; sector_I < sectors_per_block; sector_I++){
+        // lê direto para o buffer na posição correta
+        read_sector(start_sector + sector_I * sectors_per_block, buffer + SECTOR_SIZE * sector_I);
+    }
+//    int sector1 = idx*4;
+//    int sector2 = sector1+1;
+//    int sector3 = sector2+1;
+//    int sector4 = sector3+1;
+//    char sector_buffer[SECTOR_SIZE];
+//
+//    read_sector(sector1, sector_buffer);
+//    memcpy(buffer, sector_buffer, SECTOR_SIZE);
+//    read_sector(sector2, sector_buffer);
+//    memcpy(buffer+SECTOR_SIZE, sector_buffer, SECTOR_SIZE);
+//    read_sector(sector3, sector_buffer);
+//    memcpy(buffer+SECTOR_SIZE*2, sector_buffer, SECTOR_SIZE);
+//    read_sector(sector4, sector_buffer);
+//    memcpy(buffer+SECTOR_SIZE*3, sector_buffer, SECTOR_SIZE);
 
     return 0;
 }
@@ -80,6 +107,7 @@ int get_block_state(unsigned int block)
         printf("get_block_state(..) com bloco maior do que o numero de blocos do disco.\n");
         return -1;
     }
+
     // Bloco em que esta localizado o bitmap de blocos
     DWORD bitmap_block = superBloco.BitmapBlocks;
     printf("\nO bitmap de blocos esta localizado no bloco: %d\n", bitmap_block);
@@ -92,7 +120,7 @@ int get_block_state(unsigned int block)
     int offset  = block % 8; // Que deslocamento dentro dos 8 bits o bloco tem.
     printf("secao: %d\noffset: %d\n", section, offset);
 
-    char buffer[BLOCK_SIZE];
+    char buffer[superBloco.BlockSize];
     read_block(bitmap_block, buffer);
 
     bit = (buffer[section] >> (7 - offset)) & 1;
@@ -118,21 +146,20 @@ void checkSuperBloco()
 {
     if (superBloco.DiskSize == 0) {
 
-        // Tamanho do Bloco e 4x o tamanho do Setor
-        char bufferSuperBloco[BLOCK_SIZE];
-        read_block(0, bufferSuperBloco);
+        char buffer_super_bloco[SECTOR_SIZE];
+        read_sector(0, buffer_super_bloco);
 
-        strncpy( superBloco.Id, bufferSuperBloco, 4);
-        superBloco.Version =        bufferSuperBloco[4] + (bufferSuperBloco[5] << 8);
-        superBloco.SuperBlockSize = bufferSuperBloco[6] + (bufferSuperBloco[7] << 8);
-        superBloco.DiskSize =       bufferSuperBloco[8] + (bufferSuperBloco[9] << 8) + (bufferSuperBloco[10] << 16) + (bufferSuperBloco[11] << 24);
-        superBloco.NofBlocks =      bufferSuperBloco[12] + (bufferSuperBloco[13] << 8) + (bufferSuperBloco[14] << 16) + (bufferSuperBloco[15] << 24);
-        superBloco.BlockSize =      bufferSuperBloco[16] + (bufferSuperBloco[17] << 8) + (bufferSuperBloco[18] << 16) + (bufferSuperBloco[19] << 24);
-        superBloco.BitmapBlocks =   bufferSuperBloco[20] + (bufferSuperBloco[21] << 8) + (bufferSuperBloco[22] << 16) + (bufferSuperBloco[23] << 24);
-        superBloco.BitmapInodes =   bufferSuperBloco[24] + (bufferSuperBloco[25] << 8) + (bufferSuperBloco[26] << 16) + (bufferSuperBloco[27] << 24);
-        superBloco.InodeBlock =     bufferSuperBloco[28] + (bufferSuperBloco[29] << 8) + (bufferSuperBloco[30] << 16) + (bufferSuperBloco[31] << 24);
-        superBloco.FirstDataBlock = bufferSuperBloco[32] + (bufferSuperBloco[33] << 8) + (bufferSuperBloco[34] << 16) + (bufferSuperBloco[35] << 24);
+        strncpy( superBloco.Id, buffer_super_bloco, 4);
 
+        superBloco.Version =        (BYTE) buffer_super_bloco[4] + (buffer_super_bloco[5] << 8);
+        superBloco.SuperBlockSize = (BYTE) buffer_super_bloco[6] + ((BYTE) buffer_super_bloco[7] << 8);
+        superBloco.DiskSize =       (BYTE) buffer_super_bloco[8] + ((BYTE) buffer_super_bloco[9] << 8) + ((BYTE) buffer_super_bloco[10] << 16) + ((BYTE) buffer_super_bloco[11] << 24);
+        superBloco.NofBlocks =      (BYTE) buffer_super_bloco[12] + ((BYTE) buffer_super_bloco[13] << 8) + ((BYTE) buffer_super_bloco[14] << 16) + ((BYTE) buffer_super_bloco[15] << 24);
+        superBloco.BlockSize =      (BYTE) buffer_super_bloco[16] + ((BYTE) buffer_super_bloco[17] << 8) + ((BYTE) buffer_super_bloco[18] << 16) + ((BYTE) buffer_super_bloco[19] << 24);
+        superBloco.BitmapBlocks =   (BYTE) buffer_super_bloco[20] + ((BYTE) buffer_super_bloco[21] << 8) + ((BYTE) buffer_super_bloco[22] << 16) + ((BYTE) buffer_super_bloco[23] << 24);
+        superBloco.BitmapInodes =   (BYTE) buffer_super_bloco[24] + ((BYTE) buffer_super_bloco[25] << 8) + ((BYTE) buffer_super_bloco[26] << 16) + ((BYTE) buffer_super_bloco[27] << 24);
+        superBloco.InodeBlock =     (BYTE) buffer_super_bloco[28] + ((BYTE) buffer_super_bloco[29] << 8) + ((BYTE) buffer_super_bloco[30] << 16) + ((BYTE) buffer_super_bloco[31] << 24);
+        superBloco.FirstDataBlock = (BYTE) buffer_super_bloco[32] + ((BYTE) buffer_super_bloco[33] << 8) + ((BYTE) buffer_super_bloco[34] << 16) + ((BYTE) buffer_super_bloco[35] << 24);
     }
 }
 
@@ -140,7 +167,7 @@ void printSuperBloco() {
     checkSuperBloco();
 
     printf("Id: %4.4s\n", superBloco.Id);
-    printf("Version: %u\n", superBloco.Version); //TODO, incorreto pq primeiro 3 bits formam ano, e ultimo bit o semestre
+    printf("Version: Ano: %u Semestre: %u\n", superBloco.Version >> 4, superBloco.Version & ((DWORD)15));
     printf("SuperBlockSize: %u\n", superBloco.SuperBlockSize);
     printf("DiskSize: %u\n", superBloco.DiskSize);
     printf("NofBlocks: %u\n", superBloco.NofBlocks);
@@ -148,7 +175,12 @@ void printSuperBloco() {
     printf("BitmapBlockS: %u\n", superBloco.BitmapBlocks);
     printf("BitmapInodeS: %u\n", superBloco.BitmapInodes);
     printf("I-nodeBlock: %u\n", superBloco.InodeBlock);
-    printf("FirstDataBlock: %u\n", superBloco.FirstDataBlock); //TODO, valor errado quando usado disco "disk_4_2048_2048.dat"
+    printf("FirstDataBlock: %u\n", superBloco.FirstDataBlock);
+
+    // O tamanho de blocos utilizados pelo I-Node é:
+    // (tamanho I-Node (64bytes) * numero de blocos) / tamanho do bloco
+    // no arquivo disk_4_2048_2048 o tamanho do bloco de I-Nodes é 128, adicione 4 deslocamentos, e então o início
+    // do bloco de dados é no INDEX 123 (inicia em 0)
 }
 
 int identify2(char *name, int size) {
@@ -171,7 +203,8 @@ int identify2(char *name, int size) {
                "than the identification string**\n\n");
     }
 
-    printf("bit = %d\n", get_block_state(72));
+    printf("bit = %d\n", get_block_state(1));
+    print_sector(1);
     return 0;
 }
 
