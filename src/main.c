@@ -13,6 +13,6 @@ int main(int argc, char *argv[]) {
         i++;
     }
 
-    chdir2("asd");
+//    chdir2("asd");
     return 0;
 }

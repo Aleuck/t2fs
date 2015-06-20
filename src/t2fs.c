@@ -47,7 +47,7 @@ int get_records_in_block() { return superBloco.BlockSize / RECORD_SIZE; }
 
 /**
  * le estruturas a partir de um bloco com dados de diretório (apontado por um i-node)
- * 
+ *
  */
 struct t2fs_record read_record(DWORD id_block) {
     struct t2fs_record records[get_records_in_block()]; //sempre há X records por bloco
@@ -192,19 +192,33 @@ int identify2(char *name, int size) {
                "than the identification string**\n\n");
     }
 
-//    printf("bit = %d\n", get_block_state(1));
-//    print_sector(3);
-    struct t2fs_inode inode = read_i_node(0);
-    print_inode(inode);
+    //printf("bit = %d\n", get_block_state(1));
+    //print_sector(3);
+    //struct t2fs_inode inode = read_i_node(0);
+    //print_inode(inode);
 
+    /* printf("Checando bitmap Blocos\n"); */
+    /* for (i = 0; i < superBloco.NofBlocks; i++) { */
+    /*     printf("bloco %d = %d, ", i, get_bitmap_state(i, BLOCK, superBloco)); */
+    /* } */
+
+    /* printf("\nChecando bitmap Inodes\n"); */
+    /* for (i = 0; i < 64; i++) { */
+    /*     printf("inode-%d = %d, ", i, get_bitmap_state(i, INODE, superBloco)); */
+    /* } */
+
+    /* set_on_bitmap(0, 0, INODE, superBloco); */
+
+    /* printf("\nChecando bitmap Inodes\n"); */
+    /* for (i = 0; i < 64; i++) { */
+    /*     printf("inode-%d = %d, ", i, get_bitmap_state(i, INODE, superBloco)); */
+    /* } */
     return 0;
 }
 
 FILE2 create2(char *filename)
 {
     checkSuperBloco();
-
-
     return 0;
 }
 

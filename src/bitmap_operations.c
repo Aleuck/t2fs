@@ -27,14 +27,14 @@ int get_bitmap_state(unsigned int id_bit, bitmap_type type, struct t2fs_superblo
     if (type == BLOCK) {
         DWORD bitmap_block = superBloco.BitmapBlocks;
 
-        printf("\nO bitmap de blocos esta localizado no bloco: %d\n", bitmap_block);
-        printf("secao: %d\noffset: %d\n", section, offset);
+        //printf("\nO bitmap de blocos esta localizado no bloco: %d\n", bitmap_block);
+        //printf("secao: %d\noffset: %d\n", section, offset);
 
         read_block(bitmap_block, buffer, superBloco);
     } else if (type == INODE) {
         DWORD bitmap_block = superBloco.BitmapInodes;
-        printf("\nO bitmap de blocos esta localizado no bloco: %d\n", bitmap_block);
-        printf("secao: %d\noffset: %d\n", section, offset);
+        //printf("\nO bitmap de blocos esta localizado no bloco: %d\n", bitmap_block);
+        //printf("secao: %d\noffset: %d\n", section, offset);
 
         read_block(bitmap_block, buffer, superBloco);
     }
@@ -58,7 +58,7 @@ int set_on_bitmap(unsigned int id_block, short int bit_state, bitmap_type type, 
     }
 
     if (get_bitmap_state(id_block, type, superBloco) == bit_state) {
-        // Estado do bit estava igual ao pedido
+        printf("\nNao eh necessario modificar o estado.\n");
         return 0;
     }
 
@@ -79,9 +79,12 @@ int set_on_bitmap(unsigned int id_block, short int bit_state, bitmap_type type, 
 
     switch (bit_state) {
     case 0:
+        printf("\nAntiga section %d\n", (int) block_buffer[section]);
         new_section = block_buffer[section] - (1 << (7 - offset));
+        printf("Nova section %d\n", (int) new_section);
         break;
     case 1:
+        printf("to ENTRANDO");
         new_section = block_buffer[section] + (1 << (7 - offset));
         break;
     default:
@@ -94,7 +97,7 @@ int set_on_bitmap(unsigned int id_block, short int bit_state, bitmap_type type, 
     if (type == BLOCK) {
         write_block(id_bitmap_block, block_buffer, superBloco);
     } else if (type == INODE) {
-        read_block(id_bitmap_inode, block_buffer, superBloco);
+        write_block(id_bitmap_inode, block_buffer, superBloco);
     }
 
     return 0;
