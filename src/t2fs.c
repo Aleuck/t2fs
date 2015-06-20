@@ -3,81 +3,21 @@
 #include <string.h>
 #include "../include/t2fs.h"
 #include "../include/apidisk.h"
+#include "../include/bitmap_operations.h"
+#include "../include/block_io.h"
 
 #define INODE_SIZE 64
 #define RECORD_SIZE 64
 
-typedef enum {BLOCK, INODE} bitmap_type;
-
 struct t2fs_superbloco superBloco;
 
 /* Prototipo de Funcoes */
-int read_block(int id_block, char* buffer);
-int write_block(int id_block, char* buffer);
 struct t2fs_inode read_i_node(int id_inode);
 void checkSuperBloco();
-int get_bitmap_state(unsigned int id_bit, bitmap_type type);
 
 /***********************************/
 /* Definicao do corpo das Funcoes **/
 /***********************************/
-
-int set_on_bitmap(unsigned int id_block, short int bit_state, bitmap_type type)
-{
-    if (type == BLOCK && id_block >= superBloco.NofBlocks) {
-        printf("Tentando setar o bloco %d que nao existe.", id_block);
-        return -1;
-    } else if (type == INODE && 0 /*TODO: Verificar numero de inodes */) {
-        printf("Tentando setar o inode %d que nao existe.", id_block);
-        return -1;
-    } else if (bit_state != 0 && bit_state != 1) {
-        printf("Valor passado de bit invalido.\n");
-        return -1;
-    }
-
-
-    if (get_bitmap_state(id_block, type) == bit_state) {
-        // Estado do bit estava igual ao pedido
-        return 0;
-    }
-
-    int id_bitmap_block = superBloco.BitmapBlocks;
-    int id_bitmap_inode = superBloco.BitmapInodes;
-    char block_buffer[superBloco.BlockSize];
-
-    int section = id_block / 8;
-    int offset  = id_block % 8;
-
-    char new_section;
-
-    if (type == BLOCK) {
-        read_block(id_bitmap_block, block_buffer);
-    } else if (type == INODE) {
-        read_block(id_bitmap_inode, block_buffer);
-    }
-
-    switch (bit_state) {
-    case 0:
-        new_section = block_buffer[section] - (1 << (7 - offset));
-        break;
-    case 1:
-        new_section = block_buffer[section] + (1 << (7 - offset));
-        break;
-    default:
-        printf("ISSO NUNCA DEVE SER IMPRESSO");
-        return -1;
-    }
-
-    block_buffer[section] = new_section;
-
-    if (type == BLOCK) {
-        write_block(id_bitmap_block, block_buffer);
-    } else if (type == INODE) {
-        read_block(id_bitmap_inode, block_buffer);
-    }
-
-    return 0;
-}
 
 void print_record(struct t2fs_record record) {
     printf("Tipo: ");
@@ -114,7 +54,7 @@ struct t2fs_record read_record(DWORD id_block) {
     struct t2fs_record records[get_records_in_block()]; //sempre há X records por bloco
 
     char buffer[superBloco.BlockSize];
-    read_block(id_block, buffer);
+    read_block(id_block, buffer, superBloco);
 
     int r;
     for (r = 0; r < get_records_in_block(); r++){
@@ -136,7 +76,8 @@ struct t2fs_record read_record(DWORD id_block) {
 }
 
 
-void print_inode(struct t2fs_inode inode) {
+void print_inode(struct t2fs_inode inode)
+{
     int i = 0;
 
     printf("Ponteiros diretos:\n");
@@ -161,7 +102,7 @@ struct t2fs_inode read_i_node(int id_inode)
 
     //le bloco do inodes
     char buffer[superBloco.BlockSize];
-    read_block(superBloco.InodeBlock + block_relative, buffer);
+    read_block(superBloco.InodeBlock + block_relative, buffer, superBloco);
 
     //le
     int i, j;
@@ -182,20 +123,10 @@ struct t2fs_inode read_i_node(int id_inode)
     return inode;
 }
 
-/**
- * Retorna a quantidade de setores que formam um bloco, de acordo com informações
- * do superBloco.
- * Considera que tamanho do bloco sempre é um fator de SECTOR_SIZE
- */
-int get_sectors_per_block()
-{
-    return superBloco.BlockSize / SECTOR_SIZE;
-}
-
 void print_sector(int id_block)
 {
     char buffer[superBloco.BlockSize];
-    read_block(id_block, buffer);
+    read_block(id_block, buffer, superBloco);
 
     int i;
     for (i = 0; i <= superBloco.BlockSize; i += 4){
@@ -207,94 +138,6 @@ void print_sector(int id_block)
         printf("0x%02x ", (BYTE) buffer[i+3]);
     }
     printf("\n");
-}
-
-
-/**
- *  Funcao que escreve um bloco no disco. Buffer deve ter obrigatoriamente
- *  o tamanho de BLOCK_SIZE.
- *  Retorna 0 caso não ocorrer nenhum erro, -1 caso contrário.
- */
-// TODO: Fazer testes
-int write_block(int id_block, char* buffer)
-{
-    if (id_block >= superBloco.NofBlocks) {
-        printf("ERRO: Tentando escrever no bloco %d", id_block);
-        return -1;
-    }
-
-    int sectors_per_block = get_sectors_per_block();
-    int start_sector = id_block * sectors_per_block;
-
-    int sector_I;
-    for (sector_I = 0; sector_I < sectors_per_block; sector_I++){
-        // lê direto para o buffer na posição correta
-        write_sector(start_sector + sector_I * sectors_per_block, buffer + SECTOR_SIZE * sector_I);
-    }
-
-    return 0;
-}
-
-
-int read_block(int id_block, char* buffer)
-{
-    if (id_block >= superBloco.NofBlocks) {
-        printf("ERRO: Tentando ler bloco %d", id_block);
-        return -1;
-    }
-
-    int sectors_per_block = get_sectors_per_block();
-    int start_sector = id_block * sectors_per_block;
-
-    int sector_I;
-    for (sector_I = 0; sector_I < sectors_per_block; sector_I++){
-        // lê direto para o buffer na posição correta
-        read_sector(start_sector + sector_I * sectors_per_block, buffer + SECTOR_SIZE * sector_I);
-    }
-
-    return 0;
-}
-
-/**
- * Funcao que retorna o estado de um bloco:
- * 1: Usado, 0: Livre, -1: Erro na funcao
- */
-// TODO: Considera que todos os blocos podem ser representados em um bloco.
-//       Ampliar isso para o caso generico de mais blocos.
-//       Os printfs so servem para debug, podem ser retirados.
-int get_bitmap_state(unsigned int id_bit, bitmap_type type)
-{
-    if (type == BLOCK && id_bit >= superBloco.NofBlocks) {
-        printf("get_bitmap_state(..) com bloco maior do que o numero de blocos do disco.\n");
-        return -1;
-    } else if (type == INODE && 0 /*TODO: Checar o numero de inodes */) {
-        printf("git_bitmap_state(..) com inode maior do que o numero de inodes no disco.\n");
-        return -1;
-    }
-
-    int bit;
-    int section = id_bit / 8; // Que posicao i do buffer[i] o bloco se encontra.
-    int offset  = id_bit % 8; // Que deslocamento dentro dos 8 bits o bloco tem.
-    char buffer[superBloco.BlockSize];
-
-    if (type == BLOCK) {
-        DWORD bitmap_block = superBloco.BitmapBlocks;
-
-        printf("\nO bitmap de blocos esta localizado no bloco: %d\n", bitmap_block);
-        printf("secao: %d\noffset: %d\n", section, offset);
-
-        read_block(bitmap_block, buffer);
-    } else if (type == INODE) {
-        DWORD bitmap_block = superBloco.BitmapInodes;
-        printf("\nO bitmap de blocos esta localizado no bloco: %d\n", bitmap_block);
-        printf("secao: %d\noffset: %d\n", section, offset);
-
-        read_block(bitmap_block, buffer);
-    }
-
-    bit = (buffer[section] >> (7 - offset)) & 1;
-
-    return bit;
 }
 
 /* Nao sei se essa funcao tem alguma utilidade */
@@ -310,8 +153,6 @@ long unsigned int number_of_sectors()
 
     return sectors;
 }
-
-
 
 void printSuperBloco() {
     checkSuperBloco();
