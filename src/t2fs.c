@@ -9,7 +9,14 @@
 #define INODE_SIZE 64
 #define RECORD_SIZE 64
 
+typedef struct {
+    struct t2fs_inode inode;
+    int position;
+} OPEN_FILE;
+
 struct t2fs_superbloco superBloco;
+
+OPEN_FILE open_files[20];
 
 /* Prototipo de Funcoes */
 struct t2fs_inode read_i_node(int id_inode);
@@ -49,8 +56,7 @@ int get_records_in_block() { return superBloco.BlockSize / RECORD_SIZE; }
  * le estruturas a partir de um bloco com dados de diretório (apontado por um i-node)
  *
  */
-struct t2fs_record read_record(DWORD id_block) {
-    struct t2fs_record records[get_records_in_block()]; //sempre há X records por bloco
+ void read_records(DWORD id_block, struct t2fs_record records[]) {
 
     char buffer[superBloco.BlockSize];
     read_block(id_block, buffer, superBloco);
@@ -68,9 +74,6 @@ struct t2fs_record read_record(DWORD id_block) {
         records[r].i_node =          (BYTE) buffer[r * RECORD_SIZE + 40] + ((BYTE) buffer[r * RECORD_SIZE + 41] << 8) + ((BYTE) buffer[r * RECORD_SIZE + 42] << 16) + ((BYTE) buffer[r * RECORD_SIZE + 43] << 24);
 
     }
-
-
-    return records[0];
 }
 
 
@@ -273,12 +276,56 @@ int rmdir2(char *pathname)
 DIR2 opendir2(char *pathname)
 {
     checkSuperBloco();
-    return 0;
+
+    if (pathname[0] == '/'){ //diretório raíz
+        OPEN_FILE open_file;
+        open_file.inode = read_i_node(0);
+        open_file.position = 0;
+        open_files[0] = open_file;
+        return 0;
+    }
+    return -1;
 }
 
 int readdir2(DIR2 handle, DIRENT2 *dentry)
 {
     checkSuperBloco();
+    struct t2fs_record records[get_records_in_block()]; //sempre há X records por bloco
+    OPEN_FILE* workingFile = &open_files[handle];
+    read_records(workingFile->inode.dataPtr[0], records); //lê records apontados pelo primeiro ponteiro de I-node
+
+    if(records[workingFile->position].TypeVal == 1 || records[workingFile->position].TypeVal == 2){ //entrada válida
+        memcpy(dentry->name,records[workingFile->position].name,31);
+        dentry->fileType = records[workingFile->position].TypeVal;
+        dentry->fileSize = records[workingFile->position].bytesFileSize;
+
+        workingFile->position++;
+
+        return 0;
+    } else { //não ha registro aqui
+        for (workingFile->position++; workingFile->position < get_records_in_block(); workingFile->position++){
+            if (records[workingFile->position].TypeVal == 1 || records[workingFile->position].TypeVal == 2){
+                memcpy(dentry->name,records[workingFile->position].name,31);
+                dentry->fileType = records[workingFile->position].TypeVal;
+                dentry->fileSize = records[workingFile->position].bytesFileSize;
+                workingFile->position++;
+                return 0;
+            }
+        }
+        //chegou no fim do primeiro apontador do I-node
+        if (records[0].blocksFileSize == 1){ //acessa o tamanho em blocos do diretório . (ou seja ele mesmo)
+            return -1;
+        } else {
+            //TODO
+            // inode aponta para mais de um bloco
+            //acho q é possível identificar isso pelo tamanho do Inode... ou algo de tamanho (como no teste acima)
+            //procurar se há mais blocos apontados no I-Node
+            printf("Procura de diretorios grandes ainda nao implementado\n");
+            return -1; //força erro
+
+        }
+    }
+
     return 0;
 }
 
@@ -291,8 +338,6 @@ int closedir2(DIR2 handle)
 int chdir2(char *pathname)
 {
     checkSuperBloco();
-
-    struct t2fs_record tes = read_record(read_i_node(0).dataPtr[0]);
     return 0;
 }
 
