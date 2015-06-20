@@ -6,14 +6,80 @@
 
 #define INODE_SIZE 64
 
+typedef enum {BLOCK, INODE} bitmap_type;
+
 struct t2fs_superbloco superBloco;
+
+/* Prototipo de Funcoes */
 int read_block(int id_block, char* buffer);
 int write_block(int id_block, char* buffer);
-
-
 struct t2fs_inode read_i_node(int id_inode);
+void checkSuperBloco();
+int get_bitmap_state(unsigned int id_bit, bitmap_type type);
 
-void print_inode(struct t2fs_inode inode) {
+/***********************************/
+/* Definicao do corpo das Funcoes **/
+/***********************************/
+
+int set_on_bitmap(unsigned int id_block, short int bit_state, bitmap_type type)
+{
+    if (type == BLOCK && id_block >= superBloco.NofBlocks) {
+        printf("Tentando setar o bloco %d que nao existe.", id_block);
+        return -1;
+    } else if (type == INODE && 0 /*TODO: Verificar numero de inodes */) {
+        printf("Tentando setar o inode %d que nao existe.", id_block);
+        return -1;
+    } else if (bit_state != 0 && bit_state != 1) {
+        printf("Valor passado de bit invalido.\n");
+        return -1;
+    }
+
+
+    if (get_bitmap_state(id_block, type) == bit_state) {
+        // Estado do bit estava igual ao pedido
+        return 0;
+    }
+
+    int id_bitmap_block = superBloco.BitmapBlocks;
+    int id_bitmap_inode = superBloco.BitmapInodes;
+    char block_buffer[superBloco.BlockSize];
+
+    int section = id_block / 8;
+    int offset  = id_block % 8;
+
+    char new_section;
+
+    if (type == BLOCK) {
+        read_block(id_bitmap_block, block_buffer);
+    } else if (type == INODE) {
+        read_block(id_bitmap_inode, block_buffer);
+    }
+
+    switch (bit_state) {
+    case 0:
+        new_section = block_buffer[section] - (1 << (7 - offset));
+        break;
+    case 1:
+        new_section = block_buffer[section] + (1 << (7 - offset));
+        break;
+    default:
+        printf("ISSO NUNCA DEVE SER IMPRESSO");
+        return -1;
+    }
+
+    block_buffer[section] = new_section;
+
+    if (type == BLOCK) {
+        write_block(id_bitmap_block, block_buffer);
+    } else if (type == INODE) {
+        read_block(id_bitmap_inode, block_buffer);
+    }
+
+    return 0;
+}
+
+void print_inode(struct t2fs_inode inode)
+{
     int i = 0;
 
     printf("Ponteiros diretos:\n");
@@ -27,7 +93,8 @@ void print_inode(struct t2fs_inode inode) {
 
 }
 
-struct t2fs_inode read_i_node(int id_inode) {
+struct t2fs_inode read_i_node(int id_inode)
+{
     struct t2fs_inode inode;
 
     int block_relative = ((id_inode) * INODE_SIZE) / superBloco.BlockSize;
@@ -40,21 +107,24 @@ struct t2fs_inode read_i_node(int id_inode) {
     read_block(superBloco.InodeBlock + block_relative, buffer);
 
     //le
-    int i;
-    int j;
+    int i, j;
     for (i = 0, j = 0; i < 40; i+=4, j++){
-        inode.dataPtr[j] = (BYTE) buffer[inode_relative + i] + ((BYTE) buffer[inode_relative + i+1] << 8) + ((BYTE) buffer[inode_relative + i+2] << 16) + ((BYTE) buffer[inode_relative + i+3] << 24);
+        inode.dataPtr[j] = (BYTE) buffer[inode_relative + i] + ((BYTE) buffer[inode_relative + i+1] << 8) +
+                           ((BYTE) buffer[inode_relative + i+2] << 16) + ((BYTE) buffer[inode_relative + i+3] << 24);
     }
 
     //indireção simples
     i = 40;
-    inode.singleIndPtr = (BYTE) buffer[inode_relative + i] + ((BYTE) buffer[inode_relative + i+1] << 8) + ((BYTE) buffer[inode_relative + i+2] << 16) + ((BYTE) buffer[inode_relative + i+3] << 24);
+    inode.singleIndPtr = (BYTE) buffer[inode_relative + i] + ((BYTE) buffer[inode_relative + i+1] << 8) +
+                         ((BYTE) buffer[inode_relative + i+2] << 16) + ((BYTE) buffer[inode_relative + i+3] << 24);
     //indireção dupla
     i = 44;
-    inode.doubleIndPtr = (BYTE) buffer[inode_relative + i] + ((BYTE) buffer[inode_relative + i+1] << 8) + ((BYTE) buffer[inode_relative + i+2] << 16) + ((BYTE) buffer[inode_relative + i+3] << 24);
+    inode.doubleIndPtr = (BYTE) buffer[inode_relative + i] + ((BYTE) buffer[inode_relative + i+1] << 8) +
+                         ((BYTE) buffer[inode_relative + i+2] << 16) + ((BYTE) buffer[inode_relative + i+3] << 24);
 
     return inode;
 }
+
 /**
  * Retorna a quantidade de setores que formam um bloco, de acordo com informações
  * do superBloco.
@@ -135,27 +205,35 @@ int read_block(int id_block, char* buffer)
 // TODO: Considera que todos os blocos podem ser representados em um bloco.
 //       Ampliar isso para o caso generico de mais blocos.
 //       Os printfs so servem para debug, podem ser retirados.
-int get_block_state(unsigned int block)
+int get_bitmap_state(unsigned int id_bit, bitmap_type type)
 {
-    if (block >= superBloco.NofBlocks) {
-        printf("get_block_state(..) com bloco maior do que o numero de blocos do disco.\n");
+    if (type == BLOCK && id_bit >= superBloco.NofBlocks) {
+        printf("get_bitmap_state(..) com bloco maior do que o numero de blocos do disco.\n");
+        return -1;
+    } else if (type == INODE && 0 /*TODO: Checar o numero de inodes */) {
+        printf("git_bitmap_state(..) com inode maior do que o numero de inodes no disco.\n");
         return -1;
     }
 
-    // Bloco em que esta localizado o bitmap de blocos
-    DWORD bitmap_block = superBloco.BitmapBlocks;
-    printf("\nO bitmap de blocos esta localizado no bloco: %d\n", bitmap_block);
-    // Cada char contem 8 bits, portanto dividimos o numero de bloco por 8.
-    int bitmap_size = superBloco.NofBlocks / 8;
-    printf("O tamanho do bitmap eh: %d\n", bitmap_size);
-
     int bit;
-    int section = block / 8; // Que posicao i do buffer[i] o bloco se encontra.
-    int offset  = block % 8; // Que deslocamento dentro dos 8 bits o bloco tem.
-    printf("secao: %d\noffset: %d\n", section, offset);
-
+    int section = id_bit / 8; // Que posicao i do buffer[i] o bloco se encontra.
+    int offset  = id_bit % 8; // Que deslocamento dentro dos 8 bits o bloco tem.
     char buffer[superBloco.BlockSize];
-    read_block(bitmap_block, buffer);
+
+    if (type == BLOCK) {
+        DWORD bitmap_block = superBloco.BitmapBlocks;
+
+        printf("\nO bitmap de blocos esta localizado no bloco: %d\n", bitmap_block);
+        printf("secao: %d\noffset: %d\n", section, offset);
+
+        read_block(bitmap_block, buffer);
+    } else if (type == INODE) {
+        DWORD bitmap_block = superBloco.BitmapInodes;
+        printf("\nO bitmap de blocos esta localizado no bloco: %d\n", bitmap_block);
+        printf("secao: %d\noffset: %d\n", section, offset);
+
+        read_block(bitmap_block, buffer);
+    }
 
     bit = (buffer[section] >> (7 - offset)) & 1;
 
@@ -176,26 +254,7 @@ long unsigned int number_of_sectors()
     return sectors;
 }
 
-void checkSuperBloco()
-{
-    if (superBloco.DiskSize == 0) {
 
-        char buffer_super_bloco[SECTOR_SIZE];
-        read_sector(0, buffer_super_bloco);
-
-        strncpy( superBloco.Id, buffer_super_bloco, 4);
-
-        superBloco.Version =        (BYTE) buffer_super_bloco[4] + (buffer_super_bloco[5] << 8);
-        superBloco.SuperBlockSize = (BYTE) buffer_super_bloco[6] + ((BYTE) buffer_super_bloco[7] << 8);
-        superBloco.DiskSize =       (BYTE) buffer_super_bloco[8] + ((BYTE) buffer_super_bloco[9] << 8) + ((BYTE) buffer_super_bloco[10] << 16) + ((BYTE) buffer_super_bloco[11] << 24);
-        superBloco.NofBlocks =      (BYTE) buffer_super_bloco[12] + ((BYTE) buffer_super_bloco[13] << 8) + ((BYTE) buffer_super_bloco[14] << 16) + ((BYTE) buffer_super_bloco[15] << 24);
-        superBloco.BlockSize =      (BYTE) buffer_super_bloco[16] + ((BYTE) buffer_super_bloco[17] << 8) + ((BYTE) buffer_super_bloco[18] << 16) + ((BYTE) buffer_super_bloco[19] << 24);
-        superBloco.BitmapBlocks =   (BYTE) buffer_super_bloco[20] + ((BYTE) buffer_super_bloco[21] << 8) + ((BYTE) buffer_super_bloco[22] << 16) + ((BYTE) buffer_super_bloco[23] << 24);
-        superBloco.BitmapInodes =   (BYTE) buffer_super_bloco[24] + ((BYTE) buffer_super_bloco[25] << 8) + ((BYTE) buffer_super_bloco[26] << 16) + ((BYTE) buffer_super_bloco[27] << 24);
-        superBloco.InodeBlock =     (BYTE) buffer_super_bloco[28] + ((BYTE) buffer_super_bloco[29] << 8) + ((BYTE) buffer_super_bloco[30] << 16) + ((BYTE) buffer_super_bloco[31] << 24);
-        superBloco.FirstDataBlock = (BYTE) buffer_super_bloco[32] + ((BYTE) buffer_super_bloco[33] << 8) + ((BYTE) buffer_super_bloco[34] << 16) + ((BYTE) buffer_super_bloco[35] << 24);
-    }
-}
 
 void printSuperBloco() {
     checkSuperBloco();
@@ -329,4 +388,40 @@ int getcwd2(char *pathname, int size)
 {
     checkSuperBloco();
     return 0;
+}
+
+void checkSuperBloco()
+{
+    if (superBloco.DiskSize == 0) {
+
+        char buffer_super_bloco[SECTOR_SIZE];
+        read_sector(0, buffer_super_bloco);
+
+        strncpy( superBloco.Id, buffer_super_bloco, 4);
+
+        superBloco.Version =        (BYTE) buffer_super_bloco[4] + (buffer_super_bloco[5] << 8);
+
+        superBloco.SuperBlockSize = (BYTE) buffer_super_bloco[6] + ((BYTE) buffer_super_bloco[7] << 8);
+
+        superBloco.DiskSize =       (BYTE) buffer_super_bloco[8] + ((BYTE) buffer_super_bloco[9] << 8) +
+            ((BYTE) buffer_super_bloco[10] << 16) + ((BYTE) buffer_super_bloco[11] << 24);
+
+        superBloco.NofBlocks =      (BYTE) buffer_super_bloco[12] + ((BYTE) buffer_super_bloco[13] << 8) +
+            ((BYTE) buffer_super_bloco[14] << 16) + ((BYTE) buffer_super_bloco[15] << 24);
+
+        superBloco.BlockSize =      (BYTE) buffer_super_bloco[16] + ((BYTE) buffer_super_bloco[17] << 8) +
+            ((BYTE) buffer_super_bloco[18] << 16) + ((BYTE) buffer_super_bloco[19] << 24);
+
+        superBloco.BitmapBlocks =   (BYTE) buffer_super_bloco[20] + ((BYTE) buffer_super_bloco[21] << 8) +
+            ((BYTE) buffer_super_bloco[22] << 16) + ((BYTE) buffer_super_bloco[23] << 24);
+
+        superBloco.BitmapInodes =   (BYTE) buffer_super_bloco[24] + ((BYTE) buffer_super_bloco[25] << 8) +
+            ((BYTE) buffer_super_bloco[26] << 16) + ((BYTE) buffer_super_bloco[27] << 24);
+
+        superBloco.InodeBlock =     (BYTE) buffer_super_bloco[28] + ((BYTE) buffer_super_bloco[29] << 8) +
+            ((BYTE) buffer_super_bloco[30] << 16) + ((BYTE) buffer_super_bloco[31] << 24);
+
+        superBloco.FirstDataBlock = (BYTE) buffer_super_bloco[32] + ((BYTE) buffer_super_bloco[33] << 8) +
+            ((BYTE) buffer_super_bloco[34] << 16) + ((BYTE) buffer_super_bloco[35] << 24);
+    }
 }
