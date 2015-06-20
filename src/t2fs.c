@@ -4,11 +4,57 @@
 #include "../include/t2fs.h"
 #include "../include/apidisk.h"
 
+#define INODE_SIZE 64
 
 struct t2fs_superbloco superBloco;
 int read_block(int id_block, char* buffer);
 int write_block(int id_block, char* buffer);
 
+
+struct t2fs_inode read_i_node(int id_inode);
+
+void print_inode(struct t2fs_inode inode) {
+    int i = 0;
+
+    printf("Ponteiros diretos:\n");
+    for (i = 0; i < 10; i++){
+        printf("%08xh; ", inode.dataPtr[i]);
+    }
+    printf("\n");
+
+    printf("Indirecao simples: 0x%08x\n", inode.singleIndPtr);
+    printf("Indirecao dupla: 0x%08x\n", inode.doubleIndPtr);
+
+}
+
+struct t2fs_inode read_i_node(int id_inode) {
+    struct t2fs_inode inode;
+
+    int block_relative = ((id_inode) * INODE_SIZE) / superBloco.BlockSize;
+//    printf("block relative: %d\n", block_relative);
+    int inode_relative = (((id_inode) * INODE_SIZE) % superBloco.BlockSize);
+//    printf("inode relative: %d\n", inode_relative);
+
+    //le bloco do inodes
+    char buffer[superBloco.BlockSize];
+    read_block(superBloco.InodeBlock + block_relative, buffer);
+
+    //le
+    int i;
+    int j;
+    for (i = 0, j = 0; i < 40; i+=4, j++){
+        inode.dataPtr[j] = (BYTE) buffer[inode_relative + i] + ((BYTE) buffer[inode_relative + i+1] << 8) + ((BYTE) buffer[inode_relative + i+2] << 16) + ((BYTE) buffer[inode_relative + i+3] << 24);
+    }
+
+    //indireção simples
+    i = 40;
+    inode.singleIndPtr = (BYTE) buffer[inode_relative + i] + ((BYTE) buffer[inode_relative + i+1] << 8) + ((BYTE) buffer[inode_relative + i+2] << 16) + ((BYTE) buffer[inode_relative + i+3] << 24);
+    //indireção dupla
+    i = 44;
+    inode.doubleIndPtr = (BYTE) buffer[inode_relative + i] + ((BYTE) buffer[inode_relative + i+1] << 8) + ((BYTE) buffer[inode_relative + i+2] << 16) + ((BYTE) buffer[inode_relative + i+3] << 24);
+
+    return inode;
+}
 /**
  * Retorna a quantidade de setores que formam um bloco, de acordo com informações
  * do superBloco.
@@ -28,10 +74,10 @@ void print_sector(int id_block)
     for (i = 0; i <= superBloco.BlockSize; i += 4){
         if (i%16 == 0)
             printf("\n");
-        printf("%02xh ", (BYTE) buffer[i]);
-        printf("%02xh ", (BYTE) buffer[i+1]);
-        printf("%02xh ", (BYTE) buffer[i+2]);
-        printf("%02xh ", (BYTE) buffer[i+3]);
+        printf("0x%02x ", (BYTE) buffer[i]);
+        printf("0x%02x ", (BYTE) buffer[i+1]);
+        printf("0x%02x ", (BYTE) buffer[i+2]);
+        printf("0x%02x ", (BYTE) buffer[i+3]);
     }
     printf("\n");
 }
@@ -174,7 +220,7 @@ void printSuperBloco() {
 int identify2(char *name, int size) {
     int i = 0;
     char ids[] = "Alexandre Leuck (...), Gianei Sebastiany (213502)"
-        " e Leonardo Hahn (207684)";
+        " e Leonardo Hahn (207684)\n\0";
 
     checkSuperBloco();
     printSuperBloco();
@@ -191,8 +237,11 @@ int identify2(char *name, int size) {
                "than the identification string**\n\n");
     }
 
-    printf("bit = %d\n", get_block_state(1));
-    print_sector(1);
+//    printf("bit = %d\n", get_block_state(1));
+//    print_sector(3);
+    struct t2fs_inode inode = read_i_node(0);
+    print_inode(inode);
+
     return 0;
 }
 
