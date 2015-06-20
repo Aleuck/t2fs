@@ -47,8 +47,7 @@ int get_records_in_block() { return superBloco.BlockSize / RECORD_SIZE; }
 
 /**
  * le estruturas a partir de um bloco com dados de diretório (apontado por um i-node)
- * //TODO não foi possível testar corretamente a leitura, talvez há erros (por exemplo o arquivo raíz contém um
- * arquivo diretório sem nome (mas seria no lugar do diretório pai, e o '/' não tem pai
+ * 
  */
 struct t2fs_record read_record(DWORD id_block) {
     struct t2fs_record records[get_records_in_block()]; //sempre há X records por bloco
@@ -60,7 +59,7 @@ struct t2fs_record read_record(DWORD id_block) {
     for (r = 0; r < get_records_in_block(); r++){
         records[r].TypeVal = (BYTE) buffer[r * RECORD_SIZE];
 
-        strncpy( records[0].name, buffer + r * RECORD_SIZE + 1, 31);
+        memcpy( records[r].name, &buffer[r * RECORD_SIZE +1], 31);
         records[r].name[31] = '\0'; //força fim de string
 
 
@@ -68,7 +67,6 @@ struct t2fs_record read_record(DWORD id_block) {
         records[r].bytesFileSize =   (BYTE) buffer[r * RECORD_SIZE + 36] + ((BYTE) buffer[r * RECORD_SIZE + 37] << 8) + ((BYTE) buffer[r * RECORD_SIZE + 38] << 16) + ((BYTE) buffer[r * RECORD_SIZE + 39] << 24);
         records[r].i_node =          (BYTE) buffer[r * RECORD_SIZE + 40] + ((BYTE) buffer[r * RECORD_SIZE + 41] << 8) + ((BYTE) buffer[r * RECORD_SIZE + 42] << 16) + ((BYTE) buffer[r * RECORD_SIZE + 43] << 24);
 
-        print_record(records[r]);
     }
 
 
