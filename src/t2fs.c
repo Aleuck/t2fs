@@ -197,17 +197,17 @@ int identify2(char *name, int size) {
     //struct t2fs_inode inode = read_i_node(0);
     //print_inode(inode);
 
-    /* printf("Checando bitmap Blocos\n"); */
-    /* for (i = 0; i < superBloco.NofBlocks; i++) { */
-    /*     printf("bloco %d = %d, ", i, get_bitmap_state(i, BLOCK, superBloco)); */
-    /* } */
+    printf("Checando bitmap Blocos\n");
+    for (i = 0; i < superBloco.NofBlocks; i++) {
+        printf("bloco %d = %d, ", i, get_bitmap_state(i, BLOCK, superBloco));
+    }
 
     /* printf("\nChecando bitmap Inodes\n"); */
     /* for (i = 0; i < 64; i++) { */
     /*     printf("inode-%d = %d, ", i, get_bitmap_state(i, INODE, superBloco)); */
     /* } */
 
-    /* set_on_bitmap(0, 0, INODE, superBloco); */
+    set_on_bitmap(0, 0, BLOCK, superBloco);
 
     /* printf("\nChecando bitmap Inodes\n"); */
     /* for (i = 0; i < 64; i++) { */
