@@ -5,6 +5,7 @@
 #include "../include/apidisk.h"
 
 #define INODE_SIZE 64
+#define RECORD_SIZE 64
 
 typedef enum {BLOCK, INODE} bitmap_type;
 
@@ -78,8 +79,64 @@ int set_on_bitmap(unsigned int id_block, short int bit_state, bitmap_type type)
     return 0;
 }
 
-void print_inode(struct t2fs_inode inode)
-{
+void print_record(struct t2fs_record record) {
+    printf("Tipo: ");
+    switch (record.TypeVal){
+        case 0:
+            printf("Invalido\n");
+            break;
+        case 1:
+            printf("Arquivo regular\n");
+            break;
+        case 2:
+            printf("Arquivo diretorio\n");
+            break;
+        default:
+            printf("ERRO\n");
+            break;
+    }
+
+    printf("Nome: %s\n", record.name);
+
+    printf("Blocks: %u\n", record.blocksFileSize);
+    printf("Size: %u\n", record.bytesFileSize);
+    printf("I-Node Id: %u\n", record.i_node);
+}
+
+int get_records_in_block() { return superBloco.BlockSize / RECORD_SIZE; }
+
+/**
+ * le estruturas a partir de um bloco com dados de diretório (apontado por um i-node)
+ * //TODO não foi possível testar corretamente a leitura, talvez há erros (por exemplo o arquivo raíz contém um
+ * arquivo diretório sem nome (mas seria no lugar do diretório pai, e o '/' não tem pai
+ */
+struct t2fs_record read_record(DWORD id_block) {
+    struct t2fs_record records[get_records_in_block()]; //sempre há X records por bloco
+
+    char buffer[superBloco.BlockSize];
+    read_block(id_block, buffer);
+
+    int r;
+    for (r = 0; r < get_records_in_block(); r++){
+        records[r].TypeVal = (BYTE) buffer[r * RECORD_SIZE];
+
+        strncpy( records[0].name, buffer + r * RECORD_SIZE + 1, 31);
+        records[r].name[31] = '\0'; //força fim de string
+
+
+        records[r].blocksFileSize =  (BYTE) buffer[r * RECORD_SIZE + 32] + ((BYTE) buffer[r * RECORD_SIZE + 33] << 8) + ((BYTE) buffer[r * RECORD_SIZE + 34] << 16) + ((BYTE) buffer[r * RECORD_SIZE + 35] << 24);
+        records[r].bytesFileSize =   (BYTE) buffer[r * RECORD_SIZE + 36] + ((BYTE) buffer[r * RECORD_SIZE + 37] << 8) + ((BYTE) buffer[r * RECORD_SIZE + 38] << 16) + ((BYTE) buffer[r * RECORD_SIZE + 39] << 24);
+        records[r].i_node =          (BYTE) buffer[r * RECORD_SIZE + 40] + ((BYTE) buffer[r * RECORD_SIZE + 41] << 8) + ((BYTE) buffer[r * RECORD_SIZE + 42] << 16) + ((BYTE) buffer[r * RECORD_SIZE + 43] << 24);
+
+        print_record(records[r]);
+    }
+
+
+    return records[0];
+}
+
+
+void print_inode(struct t2fs_inode inode) {
     int i = 0;
 
     printf("Ponteiros diretos:\n");
@@ -381,6 +438,8 @@ int closedir2(DIR2 handle)
 int chdir2(char *pathname)
 {
     checkSuperBloco();
+
+    struct t2fs_record tes = read_record(read_i_node(0).dataPtr[0]);
     return 0;
 }
 
