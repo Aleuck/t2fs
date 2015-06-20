@@ -12,5 +12,7 @@ int main(int argc, char *argv[]) {
         printf("%c", name[i]);
         i++;
     }
+
+    chdir2("asd");
     return 0;
 }
