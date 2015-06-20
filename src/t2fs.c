@@ -7,6 +7,7 @@
 
 struct t2fs_superbloco superBloco;
 int read_block(int id_block, char* buffer);
+int write_block(int id_block, char* buffer);
 
 /**
  * Retorna a quantidade de setores que formam um bloco, de acordo com informações
@@ -62,7 +63,8 @@ int write_block(int id_block, char* buffer)
 }
 
 
-int read_block(int id_block, char* buffer) {
+int read_block(int id_block, char* buffer)
+{
     if (id_block >= superBloco.NofBlocks) {
         printf("ERRO: Tentando ler bloco %d", id_block);
         return -1;
@@ -76,20 +78,6 @@ int read_block(int id_block, char* buffer) {
         // lê direto para o buffer na posição correta
         read_sector(start_sector + sector_I * sectors_per_block, buffer + SECTOR_SIZE * sector_I);
     }
-//    int sector1 = idx*4;
-//    int sector2 = sector1+1;
-//    int sector3 = sector2+1;
-//    int sector4 = sector3+1;
-//    char sector_buffer[SECTOR_SIZE];
-//
-//    read_sector(sector1, sector_buffer);
-//    memcpy(buffer, sector_buffer, SECTOR_SIZE);
-//    read_sector(sector2, sector_buffer);
-//    memcpy(buffer+SECTOR_SIZE, sector_buffer, SECTOR_SIZE);
-//    read_sector(sector3, sector_buffer);
-//    memcpy(buffer+SECTOR_SIZE*2, sector_buffer, SECTOR_SIZE);
-//    read_sector(sector4, sector_buffer);
-//    memcpy(buffer+SECTOR_SIZE*3, sector_buffer, SECTOR_SIZE);
 
     return 0;
 }
