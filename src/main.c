@@ -2,17 +2,17 @@
 #include "../include/t2fs.h"
 #include "../include/apidisk.h"
 
-int main(int argc, char *argv[]) {
-    char name[100];
-    int i = 0;
+void ls(DIR2 dirHandle){
+    DIRENT2 dirEntry;
 
-    identify2(name,80);
-
-    while (name[i] != '\0') {
-        printf("%c", name[i]);
-        i++;
+    while(readdir2(dirHandle, &dirEntry) >= 0) {
+        printf("Name: %s Type: %d Size: %u\n", dirEntry.name, dirEntry.fileType, dirEntry.fileSize);
     }
+}
 
-    chdir2("asd");
+int main(int argc, char *argv[]) {
+
+    ls(opendir2("/"));
+
     return 0;
 }
