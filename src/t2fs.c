@@ -192,6 +192,73 @@ void printSuperBloco() {
     // do bloco de dados é no INDEX 123 (inicia em 0)
 }
 
+int is_letter(char c)
+{
+    if ((c >= 65 && c <= 90) || (c >= 97 && c <= 122)) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+int is_number(char c)
+{
+    if (c >= 48 && c <= 57) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
+
+/**
+ *  Dado um nome de arquivo, verifica se o mesmo é consistente, isto é:
+ *  tem no máximo 30 caracteres alfanuméricos.
+ */
+int is_name_consistent(char *name)
+{
+    int i = 0;
+    while (name[i] != '\0') {
+        if (is_number(name[i]) || is_letter(name[i])) {
+            i++;
+        } else {
+            printf("ERRO: Nome passado contem um caractere invalido");
+            return 0;
+        }
+    }
+    if (i > 30) {
+        printf("ERRO: Nome passado e maior que 30 caracteres.");
+        return 0;
+    }
+
+    return 1;
+}
+
+/**
+ *  Funcao que adiciona um arquivo aberto na lista global de arquivos abertos,
+ *  como ultimo elemento.
+ *  Note que a lista global (open_files) é uma lista simplesmente encadeada.
+ */
+// TODO: Encontrar possiveis erros
+int add_opened_file_to_list(OPEN_FILE *open_file)
+{
+    if (open_files->first == NULL) { // Lista está vazia
+        open_files->first = open_file;
+        open_files->size++;
+
+        open_file->next   = NULL;
+        return 0;
+    }
+
+    OPEN_FILE *searcher = open_files->first;
+
+    while (searcher->next != NULL) { // Procura ultimo elemento da lista
+        searcher = searcher->next;
+    }
+
+    searcher->next = open_file;
+    open_files->size++;
+    return 0;
+}
 
 /************************************************/
 /* Definicao das funcoes principais do trabalho */
@@ -241,9 +308,16 @@ int identify2(char *name, int size) {
     return 0;
 }
 
+/**
+ *  Funcao que cria um novo arquivo, dado o seu nome.
+ */
 FILE2 create2(char *filename)
 {
     checkSuperBloco();
+    if (!is_name_consistent(filename)) {
+        return -1;
+    }
+
     return 0;
 }
 
@@ -333,33 +407,6 @@ int mkdir2(char *pathname)
 int rmdir2(char *pathname)
 {
     checkSuperBloco();
-    return 0;
-}
-
-/**
- *  Funcao que adiciona um arquivo aberto na lista global de arquivos abertos,
- *  como ultimo elemento.
- *  Note que a lista global (open_files) é uma lista simplesmente encadeada.
- */
-// TODO: Encontrar possiveis erros
-int add_opened_file_to_list(OPEN_FILE *open_file)
-{
-    if (open_files->first == NULL) { // Lista está vazia
-        open_files->first = open_file;
-        open_files->size++;
-
-        open_file->next   = NULL;
-        return 0;
-    }
-
-    OPEN_FILE *searcher = open_files->first;
-
-    while (searcher->next != NULL) { // Procura ultimo elemento da lista
-        searcher = searcher->next;
-    }
-
-    searcher->next = open_file;
-    open_files->size++;
     return 0;
 }
 
