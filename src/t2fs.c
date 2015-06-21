@@ -259,6 +259,10 @@ FILE2 open2(char *filename)
     return 0;
 }
 
+/**
+ *  Funcao que fecha um arquivo aberto dado o seu handle.
+ *  No momento nao existe distincao entre close2 e closedir2
+ */
 int close2(FILE2 handle)
 {
     checkSuperBloco();
@@ -277,29 +281,29 @@ int close2(FILE2 handle)
         printf("Arquivo %d fechado com sucesso\n", handle);
         return 0;
     }
+
     // Enquanto nao chegar no fim da lista e handle do arquivo nao for igual ao handle passado
-    while (searcher->next != NULL || searcher->next->handle != handle) {
+    while (searcher->handle != handle) {
+        if (searcher->next == NULL) {
+            printf("ERRO: Handle %d nao aponta para um arquivo aberto.\n", handle);
+            return -1;
+        }
         searcher = searcher->next;
     }
 
-    if (searcher->next == NULL) {
-        printf("Tentando fechar um arquivo que nao esta aberto\n");
-        return -1;
-    } else { // Encontrou o arquivo na lista
-        if (searcher->next->next == NULL) { // Se searcher->next for o ultimo elemento da lista
-            free(searcher->next);
-            searcher = NULL;
-            open_files->size--;
-            printf("Arquivo %d fechado com sucesso\n", handle);
-            return 0;
-        }
-        OPEN_FILE *aux = searcher->next;
-        searcher->next = searcher->next->next;
-        free(aux);
+    if (searcher->next->next == NULL) { // Se searcher->next for o ultimo elemento da lista
+        free(searcher->next);
+        searcher = NULL;
         open_files->size--;
         printf("Arquivo %d fechado com sucesso\n", handle);
         return 0;
     }
+    OPEN_FILE *aux = searcher->next;
+    searcher->next = searcher->next->next;
+    free(aux);
+    open_files->size--;
+    printf("Arquivo %d fechado com sucesso\n", handle);
+    return 0;
 }
 
 int read2(FILE2 handle, char *buffer, int size)
@@ -438,7 +442,6 @@ int readdir2(DIR2 handle, DIRENT2 *dentry)
             //procurar se há mais blocos apontados no I-Node
             printf("Procura de diretorios grandes ainda nao implementado\n");
             return -1; //força erro
-
         }
     }
 

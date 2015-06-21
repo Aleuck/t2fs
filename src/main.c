@@ -16,6 +16,6 @@ int main(int argc, char *argv[])
     DIR2 handle = opendir2("/");
     ls(handle);
     // Qual a diferenca entra fechar um arquivo ou um diretorio??
-    close2(handle);
+    close2(1);
     return 0;
 }
