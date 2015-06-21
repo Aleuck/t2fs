@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdint-gcc.h>
 #include <string.h>
+#include <stdlib.h>
 #include "../include/t2fs.h"
 #include "../include/apidisk.h"
 #include "../include/bitmap_operations.h"
@@ -8,19 +9,30 @@
 
 #define INODE_SIZE 64
 #define RECORD_SIZE 64
+#define MAX_OPEN_FILES 20
 
-typedef struct {
+typedef struct open_file {
     struct t2fs_inode inode;
     int position;
+    int handle;
+
+    struct open_file *next;
 } OPEN_FILE;
+
+typedef struct {
+    int size;
+    OPEN_FILE *first;
+} OPEN_FILES;
 
 struct t2fs_superbloco superBloco;
 
-OPEN_FILE open_files[20];
+int current_handle = 0; // Indica o valor do handle do prox. arquivo aberto
+OPEN_FILES *open_files;
 
 /* Prototipo de Funcoes */
 struct t2fs_inode read_i_node(int id_inode);
 void checkSuperBloco();
+
 
 /***********************************/
 /* Definicao do corpo das Funcoes **/
@@ -50,14 +62,17 @@ void print_record(struct t2fs_record record) {
     printf("I-Node Id: %u\n", record.i_node);
 }
 
-int get_records_in_block() { return superBloco.BlockSize / RECORD_SIZE; }
+int get_records_in_block()
+{
+    return superBloco.BlockSize / RECORD_SIZE;
+}
 
 /**
  * le estruturas a partir de um bloco com dados de diretório (apontado por um i-node)
  *
  */
- void read_records(DWORD id_block, struct t2fs_record records[]) {
-
+void read_records(DWORD id_block, struct t2fs_record records[])
+{
     char buffer[superBloco.BlockSize];
     read_block(id_block, buffer, superBloco);
 
@@ -68,10 +83,12 @@ int get_records_in_block() { return superBloco.BlockSize / RECORD_SIZE; }
         memcpy( records[r].name, &buffer[r * RECORD_SIZE +1], 31);
         records[r].name[31] = '\0'; //força fim de string
 
-
-        records[r].blocksFileSize =  (BYTE) buffer[r * RECORD_SIZE + 32] + ((BYTE) buffer[r * RECORD_SIZE + 33] << 8) + ((BYTE) buffer[r * RECORD_SIZE + 34] << 16) + ((BYTE) buffer[r * RECORD_SIZE + 35] << 24);
-        records[r].bytesFileSize =   (BYTE) buffer[r * RECORD_SIZE + 36] + ((BYTE) buffer[r * RECORD_SIZE + 37] << 8) + ((BYTE) buffer[r * RECORD_SIZE + 38] << 16) + ((BYTE) buffer[r * RECORD_SIZE + 39] << 24);
-        records[r].i_node =          (BYTE) buffer[r * RECORD_SIZE + 40] + ((BYTE) buffer[r * RECORD_SIZE + 41] << 8) + ((BYTE) buffer[r * RECORD_SIZE + 42] << 16) + ((BYTE) buffer[r * RECORD_SIZE + 43] << 24);
+        records[r].blocksFileSize =  (BYTE) buffer[r * RECORD_SIZE + 32] + ((BYTE) buffer[r * RECORD_SIZE + 33] << 8) +
+            ((BYTE) buffer[r * RECORD_SIZE + 34] << 16) + ((BYTE) buffer[r * RECORD_SIZE + 35] << 24);
+        records[r].bytesFileSize =   (BYTE) buffer[r * RECORD_SIZE + 36] + ((BYTE) buffer[r * RECORD_SIZE + 37] << 8) +
+            ((BYTE) buffer[r * RECORD_SIZE + 38] << 16) + ((BYTE) buffer[r * RECORD_SIZE + 39] << 24);
+        records[r].i_node =          (BYTE) buffer[r * RECORD_SIZE + 40] + ((BYTE) buffer[r * RECORD_SIZE + 41] << 8) +
+            ((BYTE) buffer[r * RECORD_SIZE + 42] << 16) + ((BYTE) buffer[r * RECORD_SIZE + 43] << 24);
 
     }
 }
@@ -175,6 +192,11 @@ void printSuperBloco() {
     // do bloco de dados é no INDEX 123 (inicia em 0)
 }
 
+
+/************************************************/
+/* Definicao das funcoes principais do trabalho */
+/************************************************/
+
 int identify2(char *name, int size) {
     int i = 0;
     char ids[] = "Alexandre Leuck (...), Gianei Sebastiany (213502)"
@@ -240,7 +262,44 @@ FILE2 open2(char *filename)
 int close2(FILE2 handle)
 {
     checkSuperBloco();
-    return 0;
+
+    OPEN_FILE *searcher = open_files->first;
+
+    if (searcher == NULL) {
+        printf("Nao existem arquivos abertos no momento\n");
+        current_handle = 0; // Nao existem arquvivos abertos, seta de volta para 0
+        return -1;
+    } else if (searcher->handle == handle) { // se for o primeiro elemento
+        open_files->first = searcher->next;
+        open_files->size--;
+
+        free(searcher);
+        printf("Arquivo %d fechado com sucesso\n", handle);
+        return 0;
+    }
+    // Enquanto nao chegar no fim da lista e handle do arquivo nao for igual ao handle passado
+    while (searcher->next != NULL || searcher->next->handle != handle) {
+        searcher = searcher->next;
+    }
+
+    if (searcher->next == NULL) {
+        printf("Tentando fechar um arquivo que nao esta aberto\n");
+        return -1;
+    } else { // Encontrou o arquivo na lista
+        if (searcher->next->next == NULL) { // Se searcher->next for o ultimo elemento da lista
+            free(searcher->next);
+            searcher = NULL;
+            open_files->size--;
+            printf("Arquivo %d fechado com sucesso\n", handle);
+            return 0;
+        }
+        OPEN_FILE *aux = searcher->next;
+        searcher->next = searcher->next->next;
+        free(aux);
+        open_files->size--;
+        printf("Arquivo %d fechado com sucesso\n", handle);
+        return 0;
+    }
 }
 
 int read2(FILE2 handle, char *buffer, int size)
@@ -273,25 +332,82 @@ int rmdir2(char *pathname)
     return 0;
 }
 
+/**
+ *  Funcao que adiciona um arquivo aberto na lista global de arquivos abertos,
+ *  como ultimo elemento.
+ *  Note que a lista global (open_files) é uma lista simplesmente encadeada.
+ */
+// TODO: Encontrar possiveis erros
+int add_opened_file_to_list(OPEN_FILE *open_file)
+{
+    if (open_files->first == NULL) { // Lista está vazia
+        open_files->first = open_file;
+        open_files->size++;
+
+        open_file->next   = NULL;
+        return 0;
+    }
+
+    OPEN_FILE *searcher = open_files->first;
+
+    while (searcher->next != NULL) { // Procura ultimo elemento da lista
+        searcher = searcher->next;
+    }
+
+    searcher->next = open_file;
+    open_files->size++;
+    return 0;
+}
+
 DIR2 opendir2(char *pathname)
 {
     checkSuperBloco();
 
-    if (pathname[0] == '/'){ //diretório raíz
-        OPEN_FILE open_file;
-        open_file.inode = read_i_node(0);
-        open_file.position = 0;
-        open_files[0] = open_file;
-        return 0;
+    if (pathname[0] == '/' && open_files->first == NULL) { //diretório raíz e primeiro diretorio
+        OPEN_FILE *open_file = malloc(sizeof *open_file);
+        open_file->inode    = read_i_node(0);
+        open_file->position = 0;
+        open_file->handle   = current_handle;
+        open_file->next     = NULL;
+
+        add_opened_file_to_list(open_file);
+
+        current_handle++;
+        return current_handle-1;
     }
     return -1;
+}
+
+/**
+ *  Funcao que retorna um arquivo aberto dado o seu handle.
+ *  Retorna NULL caso nao encontre o arquivo.
+ */
+OPEN_FILE* get_file_from_list(int handle)
+{
+    if (open_files->first == NULL) {
+        printf("ERRO: Tentando pegar um arquivo de uma lista vazia\n");
+        return NULL;
+    }
+
+    OPEN_FILE *searcher = open_files->first;
+
+    while (searcher->handle != handle) {
+        if (searcher->next == NULL) {
+            printf("ERRO: Arquivo nao encontrado\n");
+            return NULL;
+        }
+        searcher = searcher->next;
+    }
+
+    return searcher;
 }
 
 int readdir2(DIR2 handle, DIRENT2 *dentry)
 {
     checkSuperBloco();
     struct t2fs_record records[get_records_in_block()]; //sempre há X records por bloco
-    OPEN_FILE* workingFile = &open_files[handle];
+    OPEN_FILE* workingFile = get_file_from_list(handle);
+
     read_records(workingFile->inode.dataPtr[0], records); //lê records apontados pelo primeiro ponteiro de I-node
 
     if(records[workingFile->position].TypeVal == 1 || records[workingFile->position].TypeVal == 2){ //entrada válida
@@ -352,6 +468,11 @@ void checkSuperBloco()
     if (superBloco.DiskSize == 0) {
 
         char buffer_super_bloco[SECTOR_SIZE];
+
+        open_files = malloc(sizeof *open_files);
+        open_files->size = 0;
+        open_files->first = NULL;
+
         read_sector(0, buffer_super_bloco);
 
         strncpy( superBloco.Id, buffer_super_bloco, 4);
