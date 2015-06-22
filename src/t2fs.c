@@ -1,8 +1,7 @@
 #include <stdio.h>
-
+#include <stdint-gcc.h>
 #include <string.h>
 #include <stdlib.h>
-
 #include "../include/t2fs.h"
 #include "../include/apidisk.h"
 #include "../include/bitmap_operations.h"
@@ -13,11 +12,12 @@
 #define RECORD_SIZE 64
 #define MAX_OPEN_FILES 20
 
+typedef enum {FILE_TYPE, DIR_TYPE} file_type;
+
 typedef struct open_file {
     struct t2fs_inode inode;
     int position;
     int handle;
-
     struct open_file *next;
 } OPEN_FILE;
 
@@ -28,8 +28,9 @@ typedef struct {
 
 struct t2fs_superbloco superBloco;
 
-int current_handle = 0; // Indica o valor do handle do prox. arquivo aberto
-OPEN_FILES *open_files;
+int current_handle = 0;       // Indica o valor do handle do prox. arquivo aberto
+OPEN_FILES *open_files;       // Lista encadeada dos arquivos abertos
+OPEN_FILES *open_directories; // Lista encadeada dos diretorios abertos
 struct t2fs_inode current_dir;
 
 /* Prototipo de Funcoes */
@@ -65,9 +66,8 @@ void print_record(struct t2fs_record record) {
     printf("I-Node Id: %u\n", record.i_node);
 }
 
-
-
-int get_records_in_block() {
+int get_records_in_block()
+{
     return superBloco.BlockSize / RECORD_SIZE;
 }
 
@@ -96,7 +96,6 @@ void read_records(DWORD id_block, struct t2fs_record records[])
 
     }
 }
-
 
 void print_inode(struct t2fs_inode inode)
 {
@@ -243,25 +242,44 @@ int is_name_consistent(char *name)
  *  Note que a lista global (open_files) é uma lista simplesmente encadeada.
  */
 // TODO: Encontrar possiveis erros
-int add_opened_file_to_list(OPEN_FILE *open_file)
+int add_opened_file_to_list(OPEN_FILE *open_file, file_type type)
 {
-    if (open_files->first == NULL) { // Lista está vazia
-        open_files->first = open_file;
-        open_files->size++;
+    OPEN_FILE *searcher;
+    if (type == FILE_TYPE) {
+        if (open_files->first == NULL) { // Lista está vazia
+            open_files->first = open_file;
+            open_files->size++;
 
-        open_file->next   = NULL;
+            open_file->next   = NULL;
+            return 0;
+        }
+
+        searcher = open_files->first;
+
+        while (searcher->next != NULL) { // Procura ultimo elemento da lista
+            searcher = searcher->next;
+        }
+
+        searcher->next = open_file;
+        open_files->size++;
+        return 0;
+    } else {
+        if (open_directories->first == NULL) {
+            open_directories->first = open_file;
+            open_directories->size++;
+            open_file->next = NULL;
+            return 0;
+        }
+
+        searcher = open_directories->first;
+
+        while (searcher->next != NULL) {
+            searcher = searcher->next;
+        }
+        searcher->next = open_file;
+        open_directories->size++;
         return 0;
     }
-
-    OPEN_FILE *searcher = open_files->first;
-
-    while (searcher->next != NULL) { // Procura ultimo elemento da lista
-        searcher = searcher->next;
-    }
-
-    searcher->next = open_file;
-    open_files->size++;
-    return 0;
 }
 
 /************************************************/
@@ -348,8 +366,7 @@ int close2(FILE2 handle)
     OPEN_FILE *searcher = open_files->first;
 
     if (searcher == NULL) {
-        printf("Nao existem arquivos abertos no momento\n");
-        current_handle = 0; // Nao existem arquvivos abertos, seta de volta para 0
+        printf("ERRO: Nao e possivel fechar arquivo %d, o mesmo nao existe\n", handle);
         return -1;
     } else if (searcher->handle == handle) { // se for o primeiro elemento
         open_files->first = searcher->next;
@@ -402,26 +419,10 @@ int seek2(FILE2 handle, unsigned int offset)
     return 0;
 }
 
-/**
-Função que cria um novo diretório. O caminho desse novo diretório é aquele informado pelo parâmetro
-“pathname”, que pode ser absoluto ou relativo.
-Se a operação foi realizada com sucesso, a função retorna “0” (zero). Caso ocorra algum erro, a função retorna
-um valor diferente de zero. São considerados erros quaisquer situações em que o diretório não possa ser criado,
-incluindo a existência de um arquivo ou diretório com o mesmo “pathname”.
-Observar que ao ser criado um novo diretório, deverão ser criadas, automaticamente, duas entradas: “.” e “..”. A
-        entrada “.” corresponde ao descritor do diretório recém criado e a entrada “..” à entrada de seu diretório pai. No
-        caso do diretório raiz, essas duas entradas apontam para o próprio descritor do diretório raiz.
-        */
 int mkdir2(char *pathname)
 {
     checkSuperBloco();
-    if (pathname[0] == '/' && open_files->first == NULL) {
-
-    } else { // posição absoluta
-
-    }
-
-        return 0;
+    return 0;
 }
 
 int rmdir2(char *pathname)
@@ -434,12 +435,17 @@ DIR2 opendir2(char *pathname)
 {
     checkSuperBloco();
 
-    if (pathname[0] == '/' && open_files->first == NULL) { //diretório raíz e primeiro diretorio
+    if ((open_files->size + open_directories->size) == MAX_OPEN_FILES) {
+        printf("ERRO: numero maximo de arquivos abertos (20)");
+        return -1;
+    }
+    if (pathname[0] == '/' && open_directories->first == NULL) { //diretório raíz e primeiro diretorio
         OPEN_FILE *open_file = malloc(sizeof *open_file);
         open_file->inode    = read_i_node(0);
         open_file->position = 0;
         open_file->handle   = current_handle;
         open_file->next     = NULL;
+        add_opened_file_to_list(open_file, DIR_TYPE);
 
         add_opened_file_to_list(open_file);
 
@@ -453,14 +459,22 @@ DIR2 opendir2(char *pathname)
  *  Funcao que retorna um arquivo aberto dado o seu handle.
  *  Retorna NULL caso nao encontre o arquivo.
  */
-OPEN_FILE* get_file_from_list(int handle)
+OPEN_FILE* get_file_from_list(int handle, file_type type)
 {
-    if (open_files->first == NULL) {
+    OPEN_FILES *list;
+    OPEN_FILE *searcher;
+    if (type == FILE_TYPE) {
+        list = open_files;
+    }else {
+        list = open_directories;
+    }
+
+    if (list->first == NULL) {
         printf("ERRO: Tentando pegar um arquivo de uma lista vazia\n");
         return NULL;
     }
 
-    OPEN_FILE *searcher = open_files->first;
+    searcher = list->first;
 
     while (searcher->handle != handle) {
         if (searcher->next == NULL) {
@@ -469,7 +483,6 @@ OPEN_FILE* get_file_from_list(int handle)
         }
         searcher = searcher->next;
     }
-
     return searcher;
 }
 
@@ -477,7 +490,11 @@ int readdir2(DIR2 handle, DIRENT2 *dentry)
 {
     checkSuperBloco();
     struct t2fs_record records[get_records_in_block()]; //sempre há X records por bloco
-    OPEN_FILE* workingFile = get_file_from_list(handle);
+    OPEN_FILE* workingFile = get_file_from_list(handle, DIR_TYPE);
+
+    if (workingFile == NULL) {
+        return -1;
+    }
 
     read_records(workingFile->inode.dataPtr[0], records); //lê records apontados pelo primeiro ponteiro de I-node
 
@@ -540,9 +557,13 @@ void checkSuperBloco()
 
         char buffer_super_bloco[SECTOR_SIZE];
 
+        // Inicializa lista de diretorios e arquivos
         open_files = malloc(sizeof *open_files);
         open_files->size = 0;
         open_files->first = NULL;
+        open_directories = malloc(sizeof *open_directories);
+        open_directories->size = 0;
+        open_directories->first = NULL;
 
         read_sector(0, buffer_super_bloco);
 

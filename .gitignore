@@ -4,3 +4,7 @@ CMakeLists.txt
 t2fs.o
 t2fs_disk.dat
 teste
+bitmap_operations.o
+block_io.o
+filepath_operations.o
+main.o
