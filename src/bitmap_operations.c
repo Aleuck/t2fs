@@ -21,7 +21,7 @@ int get_bitmap_state(unsigned int id_bit, bitmap_type type, struct t2fs_superblo
 
     int bit;
     int section = id_bit >> 3; // Que posicao i do buffer[i] o bloco se encontra.
-    int offset  = id_bit & 7; // Que deslocamento dentro dos 8 bits o bloco tem.
+    int offset  = 7 - (id_bit & 7); // Que deslocamento dentro dos 8 bits o bloco tem.
     char buffer[superBloco.BlockSize];
 
     if (type == BLOCK) {

@@ -408,6 +408,9 @@ FILE2 create2(char *filename)
 int delete2(char *filename)
 {
     checkSuperBloco();
+    print_inode(*read_i_node(0));
+    printf("\nBLOCKS\n");
+    printf("inode: %d, block: %d\n", superBloco.InodeBlock, superBloco.FirstDataBlock);
     print_bitmap(BLOCK, superBloco);
     printf("\nINODES\n");
     print_bitmap(INODE, superBloco);
