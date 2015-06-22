@@ -14,7 +14,7 @@
 typedef enum {FILE_TYPE, DIR_TYPE} file_type;
 
 typedef struct open_file {
-    struct t2fs_inode inode;
+    struct t2fs_inode *inode;
     int position;
     int handle;
     struct open_file *next;
@@ -32,7 +32,7 @@ OPEN_FILES *open_files;       // Lista encadeada dos arquivos abertos
 OPEN_FILES *open_directories; // Lista encadeada dos diretorios abertos
 
 /* Prototipo de Funcoes */
-struct t2fs_inode read_i_node(int id_inode);
+struct t2fs_inode* read_i_node(int id_inode);
 void checkSuperBloco();
 
 
@@ -77,9 +77,9 @@ void read_records(DWORD id_block, struct t2fs_record records[])
 {
     char buffer[superBloco.BlockSize];
     read_block(id_block, buffer, superBloco);
-
+    int num_records = get_records_in_block();
     int r;
-    for (r = 0; r < get_records_in_block(); r++){
+    for (r = 0; r < num_records; r++) {
         records[r].TypeVal = (BYTE) buffer[r * RECORD_SIZE];
 
         memcpy( records[r].name, &buffer[r * RECORD_SIZE +1], 31);
@@ -92,6 +92,12 @@ void read_records(DWORD id_block, struct t2fs_record records[])
         records[r].i_node =          (BYTE) buffer[r * RECORD_SIZE + 40] + ((BYTE) buffer[r * RECORD_SIZE + 41] << 8) +
             ((BYTE) buffer[r * RECORD_SIZE + 42] << 16) + ((BYTE) buffer[r * RECORD_SIZE + 43] << 24);
 
+    }
+    // Seta as entradas para invalidas caso nao sejam diretorios ou arquivos
+    for (r = 0; r < num_records; r++) {
+        if (records[r].TypeVal != TYPEVAL_DIRETORIO && records[r].TypeVal != TYPEVAL_REGULAR) {
+            records[r].TypeVal = TYPEVAL_INVALIDO;
+        }
     }
 }
 
@@ -110,9 +116,27 @@ void print_inode(struct t2fs_inode inode)
 
 }
 
-struct t2fs_inode read_i_node(int id_inode)
+int write_inode(int id_inode, struct t2fs_inode *inode)
 {
-    struct t2fs_inode inode;
+    int i;
+    char buffer[superBloco.BlockSize];
+    int first_inode = superBloco.InodeBlock;
+
+    for (i = 0; i < 10; i++) {
+        memcpy(buffer+(i*4), inode->dataPtr+i, 4);
+    }
+    memcpy(buffer+40, &inode->singleIndPtr, 4);
+    memcpy(buffer+44, &inode->doubleIndPtr, 4);
+
+    write_block(first_inode + id_inode, buffer, superBloco);
+    set_on_bitmap(id_inode, 1, INODE, superBloco);
+
+    return 0;
+}
+
+struct t2fs_inode* read_i_node(int id_inode)
+{
+    struct t2fs_inode *inode = malloc(sizeof(*inode));
 
     int block_relative = ((id_inode) * INODE_SIZE) / superBloco.BlockSize;
 //    printf("block relative: %d\n", block_relative);
@@ -126,17 +150,16 @@ struct t2fs_inode read_i_node(int id_inode)
     //le
     int i, j;
     for (i = 0, j = 0; i < 40; i+=4, j++){
-        inode.dataPtr[j] = (BYTE) buffer[inode_relative + i] + ((BYTE) buffer[inode_relative + i+1] << 8) +
+        inode->dataPtr[j] = (BYTE) buffer[inode_relative + i] + ((BYTE) buffer[inode_relative + i+1] << 8) +
                            ((BYTE) buffer[inode_relative + i+2] << 16) + ((BYTE) buffer[inode_relative + i+3] << 24);
     }
-
     //indireção simples
     i = 40;
-    inode.singleIndPtr = (BYTE) buffer[inode_relative + i] + ((BYTE) buffer[inode_relative + i+1] << 8) +
+    inode->singleIndPtr = (BYTE) buffer[inode_relative + i] + ((BYTE) buffer[inode_relative + i+1] << 8) +
                          ((BYTE) buffer[inode_relative + i+2] << 16) + ((BYTE) buffer[inode_relative + i+3] << 24);
     //indireção dupla
     i = 44;
-    inode.doubleIndPtr = (BYTE) buffer[inode_relative + i] + ((BYTE) buffer[inode_relative + i+1] << 8) +
+    inode->doubleIndPtr = (BYTE) buffer[inode_relative + i] + ((BYTE) buffer[inode_relative + i+1] << 8) +
                          ((BYTE) buffer[inode_relative + i+2] << 16) + ((BYTE) buffer[inode_relative + i+3] << 24);
 
     return inode;
@@ -280,6 +303,32 @@ int add_opened_file_to_list(OPEN_FILE *open_file, file_type type)
     }
 }
 
+/**
+ *  Funcao que retorna o indice do primeiro elemento livre no
+ *  bitmap indicado por *type*.
+ */
+int get_free_bit_on_bitmap(bitmap_type type)
+{
+    int idx = 0;
+    while (get_bitmap_state(idx, type, superBloco) != 0) {
+        idx++;
+    }
+    return idx;
+}
+
+/**
+ *  Funcao que seta todas entradas do inode para 0x0FFFFFFFF
+ */
+void initialize_inode(struct t2fs_inode *inode)
+{
+    int i;
+    for (i = 0; i < 10; i++) {
+        inode->dataPtr[i] = 0x0FFFFFFFF;
+    }
+    inode->singleIndPtr = 0x0FFFFFFFF;
+    inode->doubleIndPtr = 0x0FFFFFFFF;
+}
+
 /************************************************/
 /* Definicao das funcoes principais do trabalho */
 /************************************************/
@@ -304,27 +353,13 @@ int identify2(char *name, int size) {
                "than the identification string**\n\n");
     }
 
-    //printf("bit = %d\n", get_block_state(1));
-    //print_sector(3);
-    //struct t2fs_inode inode = read_i_node(0);
-    //print_inode(inode);
-
     printf("Checando bitmap Blocos\n");
     for (i = 0; i < superBloco.NofBlocks; i++) {
         printf("bloco %d = %d, ", i, get_bitmap_state(i, BLOCK, superBloco));
     }
 
-    /* printf("\nChecando bitmap Inodes\n"); */
-    /* for (i = 0; i < 64; i++) { */
-    /*     printf("inode-%d = %d, ", i, get_bitmap_state(i, INODE, superBloco)); */
-    /* } */
-
     set_on_bitmap(0, 0, BLOCK, superBloco);
 
-    /* printf("\nChecando bitmap Inodes\n"); */
-    /* for (i = 0; i < 64; i++) { */
-    /*     printf("inode-%d = %d, ", i, get_bitmap_state(i, INODE, superBloco)); */
-    /* } */
     return 0;
 }
 
@@ -334,10 +369,37 @@ int identify2(char *name, int size) {
 FILE2 create2(char *filename)
 {
     checkSuperBloco();
+
     if (!is_name_consistent(filename)) {
         return -1;
     }
 
+    struct t2fs_record *new_file;
+    struct t2fs_inode *new_file_inode;
+    struct t2fs_inode *dir_inode;
+    OPEN_FILE *current_dir;
+
+    int idx = get_free_bit_on_bitmap(INODE);
+    printf("Primeiro indice livre de inode e %d", idx);
+
+    // TODO: No momento assuma que diretorio atual e o primeiro da lista. Necessario Arrumar
+    current_dir = open_directories->first;
+    dir_inode = current_dir->inode;
+
+    // Cria o record para o arquivo
+    new_file                 = malloc(sizeof *new_file);
+    new_file->TypeVal        = TYPEVAL_REGULAR;
+    new_file->i_node         = idx;
+    new_file->blocksFileSize = 1;         // ocupa 1 inode quando criado
+    new_file->bytesFileSize  = 31;        // TODO: 31 bytes?? ou 0? (31 bytes tem o nome)
+    strncpy(new_file->name, filename, 31);
+    // Cria inode para arquivo
+    new_file_inode = malloc(sizeof *new_file_inode);
+    initialize_inode(new_file_inode);
+    write_inode(idx, new_file_inode);
+    // TODO: Adicionar Record no Arquivo.
+    // ...
+    // ...
     return 0;
 }
 
@@ -369,7 +431,7 @@ int close2(FILE2 handle)
     } else if (searcher->handle == handle) { // se for o primeiro elemento
         open_files->first = searcher->next;
         open_files->size--;
-
+        free(searcher->inode);
         free(searcher);
         printf("Arquivo %d fechado com sucesso\n", handle);
         return 0;
@@ -385,6 +447,7 @@ int close2(FILE2 handle)
     }
 
     if (searcher->next->next == NULL) { // Se searcher->next for o ultimo elemento da lista
+        free(searcher->next->inode);
         free(searcher->next);
         searcher = NULL;
         open_files->size--;
@@ -393,6 +456,7 @@ int close2(FILE2 handle)
     }
     OPEN_FILE *aux = searcher->next;
     searcher->next = searcher->next->next;
+    free(aux->inode);
     free(aux);
     open_files->size--;
     printf("Arquivo %d fechado com sucesso\n", handle);
@@ -492,9 +556,9 @@ int readdir2(DIR2 handle, DIRENT2 *dentry)
         return -1;
     }
 
-    read_records(workingFile->inode.dataPtr[0], records); //lê records apontados pelo primeiro ponteiro de I-node
+    read_records(workingFile->inode->dataPtr[0], records); //lê records apontados pelo primeiro ponteiro de I-node
 
-    if(records[workingFile->position].TypeVal == 1 || records[workingFile->position].TypeVal == 2){ //entrada válida
+    if (records[workingFile->position].TypeVal == 1 || records[workingFile->position].TypeVal == 2) { //entrada válida
         memcpy(dentry->name,records[workingFile->position].name,31);
         dentry->fileType = records[workingFile->position].TypeVal;
         dentry->fileSize = records[workingFile->position].bytesFileSize;
@@ -503,8 +567,8 @@ int readdir2(DIR2 handle, DIRENT2 *dentry)
 
         return 0;
     } else { //não ha registro aqui
-        for (workingFile->position++; workingFile->position < get_records_in_block(); workingFile->position++){
-            if (records[workingFile->position].TypeVal == 1 || records[workingFile->position].TypeVal == 2){
+        for (workingFile->position++; workingFile->position < get_records_in_block(); workingFile->position++) {
+            if (records[workingFile->position].TypeVal == 1 || records[workingFile->position].TypeVal == 2) {
                 memcpy(dentry->name,records[workingFile->position].name,31);
                 dentry->fileType = records[workingFile->position].TypeVal;
                 dentry->fileSize = records[workingFile->position].bytesFileSize;
@@ -513,7 +577,7 @@ int readdir2(DIR2 handle, DIRENT2 *dentry)
             }
         }
         //chegou no fim do primeiro apontador do I-node
-        if (records[0].blocksFileSize == 1){ //acessa o tamanho em blocos do diretório . (ou seja ele mesmo)
+        if (records[0].blocksFileSize == 1) { //acessa o tamanho em blocos do diretório . (ou seja ele mesmo)
             return -1;
         } else {
             //TODO
