@@ -13,10 +13,15 @@ void ls(DIR2 dirHandle)
 
 int main(int argc, char *argv[])
 {
-    DIR2 handle = opendir2("/");
-    ls(handle);
-    // Qual a diferenca entra fechar um arquivo ou um diretorio??
-    close2(0);
+//    DIR2 handle = opendir2("/");
+//    ls(handle);
+//    // Qual a diferenca entra fechar um arquivo ou um diretorio??
+//    close2(0);
+
+    char dir[] = "/.././..\0";
+    chdir2(dir);
+    char teste[30];
+    getcwd2(teste, 30);
 
     return 0;
 }
