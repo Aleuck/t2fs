@@ -20,8 +20,8 @@ int get_bitmap_state(unsigned int id_bit, bitmap_type type, struct t2fs_superblo
     }
 
     int bit;
-    int section = id_bit / 8; // Que posicao i do buffer[i] o bloco se encontra.
-    int offset  = id_bit % 8; // Que deslocamento dentro dos 8 bits o bloco tem.
+    int section = id_bit >> 3; // Que posicao i do buffer[i] o bloco se encontra.
+    int offset  = id_bit & 7; // Que deslocamento dentro dos 8 bits o bloco tem.
     char buffer[superBloco.BlockSize];
 
     if (type == BLOCK) {
@@ -74,8 +74,8 @@ int set_on_bitmap(unsigned int id_block, short int bit_state, bitmap_type type, 
     int id_bitmap_inode = superBloco.BitmapInodes;
     char block_buffer[superBloco.BlockSize];
 
-    int section = id_block / 8;
-    int offset  = id_block % 8;
+    int section = id_block >> 3;
+    int offset  = id_block & 7;
 
     char new_section;
 
