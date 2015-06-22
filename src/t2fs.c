@@ -385,7 +385,7 @@ FILE2 create2(char *filename)
 
     // TODO: No momento só guarda no diretório corrente, 
     //       não permite passagem do caminho completo.
-    dir_inode = current_dir;
+    dir_inode = &current_dir;
 
     // Cria o record para o arquivo
     new_file                 = malloc(sizeof *new_file);
@@ -401,7 +401,7 @@ FILE2 create2(char *filename)
     // TODO: Adicionar Record no Arquivo.
     // ...
     // ...
-    return 0;
+    return open2(filename);
 }
 
 int delete2(char *filename)
