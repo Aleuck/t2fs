@@ -71,4 +71,9 @@ int closedir2 (DIR2 handle);
 int chdir2 (char *pathname);
 int getcwd2 (char *pathname, int size);
 
+
+struct t2fs_inode read_i_node(int id_inode);
+int get_records_in_block();
+void read_records(DWORD id_block, struct t2fs_record records[]);
+
 #endif

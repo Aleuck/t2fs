@@ -1,11 +1,13 @@
 #include <stdio.h>
-#include <stdint-gcc.h>
+
 #include <string.h>
 #include <stdlib.h>
+
 #include "../include/t2fs.h"
 #include "../include/apidisk.h"
 #include "../include/bitmap_operations.h"
 #include "../include/block_io.h"
+#include "../include/filepath_operations.h"
 
 #define INODE_SIZE 64
 #define RECORD_SIZE 64
@@ -28,9 +30,10 @@ struct t2fs_superbloco superBloco;
 
 int current_handle = 0; // Indica o valor do handle do prox. arquivo aberto
 OPEN_FILES *open_files;
+struct t2fs_inode current_dir;
 
 /* Prototipo de Funcoes */
-struct t2fs_inode read_i_node(int id_inode);
+
 void checkSuperBloco();
 
 
@@ -62,8 +65,9 @@ void print_record(struct t2fs_record record) {
     printf("I-Node Id: %u\n", record.i_node);
 }
 
-int get_records_in_block()
-{
+
+
+int get_records_in_block() {
     return superBloco.BlockSize / RECORD_SIZE;
 }
 
@@ -398,10 +402,26 @@ int seek2(FILE2 handle, unsigned int offset)
     return 0;
 }
 
+/**
+Função que cria um novo diretório. O caminho desse novo diretório é aquele informado pelo parâmetro
+“pathname”, que pode ser absoluto ou relativo.
+Se a operação foi realizada com sucesso, a função retorna “0” (zero). Caso ocorra algum erro, a função retorna
+um valor diferente de zero. São considerados erros quaisquer situações em que o diretório não possa ser criado,
+incluindo a existência de um arquivo ou diretório com o mesmo “pathname”.
+Observar que ao ser criado um novo diretório, deverão ser criadas, automaticamente, duas entradas: “.” e “..”. A
+        entrada “.” corresponde ao descritor do diretório recém criado e a entrada “..” à entrada de seu diretório pai. No
+        caso do diretório raiz, essas duas entradas apontam para o próprio descritor do diretório raiz.
+        */
 int mkdir2(char *pathname)
 {
     checkSuperBloco();
-    return 0;
+    if (pathname[0] == '/' && open_files->first == NULL) {
+
+    } else { // posição absoluta
+
+    }
+
+        return 0;
 }
 
 int rmdir2(char *pathname)
@@ -504,12 +524,13 @@ int closedir2(DIR2 handle)
 int chdir2(char *pathname)
 {
     checkSuperBloco();
-    return 0;
+    return find_inode_from_path(superBloco, pathname, current_dir, &current_dir);
 }
 
 int getcwd2(char *pathname, int size)
 {
     checkSuperBloco();
+    printf("current inode first block index: %u\n", current_dir.dataPtr[0]);
     return 0;
 }
 
@@ -551,5 +572,8 @@ void checkSuperBloco()
 
         superBloco.FirstDataBlock = (BYTE) buffer_super_bloco[32] + ((BYTE) buffer_super_bloco[33] << 8) +
             ((BYTE) buffer_super_bloco[34] << 16) + ((BYTE) buffer_super_bloco[35] << 24);
+
+
+        current_dir = read_i_node(0); //define diretório raíz como diretório atual
     }
 }
