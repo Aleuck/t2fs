@@ -433,7 +433,7 @@ DIR2 opendir2(char *pathname)
 {
     checkSuperBloco();
 
-    if (open_files->size == 20) {
+    if ((open_files->size + open_directories->size) == 20) {
         printf("ERRO: numero maximo de arquivos abertos (20)");
         return -1;
     }
