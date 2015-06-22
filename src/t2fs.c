@@ -122,15 +122,19 @@ int write_inode(int id_inode, struct t2fs_inode *inode)
 {
     int i;
     char buffer[superBloco.BlockSize];
-    int first_inode = superBloco.InodeBlock;
+    int block_relative = ((id_inode) * INODE_SIZE) / superBloco.BlockSize;
+    int inode_relative = (((id_inode) * INODE_SIZE) % superBloco.BlockSize);
+
+    read_block(superBloco.InodeBlock + block_relative, buffer, superBloco);
 
     for (i = 0; i < 10; i++) {
-        memcpy(buffer+(i*4), inode->dataPtr+i, 4);
+        memcpy(buffer+inode_relative+(i*4), inode->dataPtr+i, 4);
     }
-    memcpy(buffer+40, &inode->singleIndPtr, 4);
-    memcpy(buffer+44, &inode->doubleIndPtr, 4);
 
-    write_block(first_inode + id_inode, buffer, superBloco);
+    memcpy(buffer+inode_relative+40, &inode->singleIndPtr, 4);
+    memcpy(buffer+inode_relative+44, &inode->doubleIndPtr, 4);
+
+    write_block(superBloco.InodeBlock + block_relative, buffer, superBloco);
     set_on_bitmap(id_inode, 1, INODE, superBloco);
 
     return 0;
@@ -408,11 +412,22 @@ FILE2 create2(char *filename)
 int delete2(char *filename)
 {
     checkSuperBloco();
-    print_inode(*read_i_node(0));
-    printf("\nBLOCKS\n");
-    printf("inode: %d, block: %d\n", superBloco.InodeBlock, superBloco.FirstDataBlock);
-    print_bitmap(BLOCK, superBloco);
-    printf("\nINODES\n");
+    struct t2fs_inode *inode = read_i_node(0);
+    print_inode(*inode);
+    // Escreve inode igual ao inode 0 no inode 1
+    write_inode(1, inode);
+    free(inode);
+
+    struct t2fs_inode *inode1 = read_i_node(1);
+    print_inode(*inode1);
+    free(inode1);
+
+    //printf("\n%d, %d\n", superBloco.InodeBlock, superBloco.FirstDataBlock);
+    //print_inode(*read_i_node(0));
+    //printf("\nBLOCKS\n");
+    //printf("inode: %d, block: %d\n", superBloco.InodeBlock, superBloco.FirstDataBlock);
+    //print_bitmap(BLOCK, superBloco);
+    //printf("\nINODES\n");
     print_bitmap(INODE, superBloco);
     return 0;
 }

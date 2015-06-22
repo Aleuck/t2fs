@@ -48,7 +48,7 @@ void print_bitmap(bitmap_type type, struct t2fs_superbloco superBloco)
 {
     unsigned int i;
     for (i = 0; i < superBloco.NofBlocks; i++) {
-        printf("%d ", get_bitmap_state(i, type, superBloco));
+        printf("%d = %d ", i, get_bitmap_state(i, type, superBloco));
     }
 }
 
