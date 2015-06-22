@@ -52,20 +52,20 @@ void print_bitmap(bitmap_type type, struct t2fs_superbloco superBloco)
     }
 }
 
-int set_on_bitmap(unsigned int id_block, short int bit_state, bitmap_type type, struct t2fs_superbloco superBloco)
+int set_on_bitmap(unsigned int id_bit, short int bit_state, bitmap_type type, struct t2fs_superbloco superBloco)
 {
-    if (type == BLOCK && id_block >= superBloco.NofBlocks) {
-        printf("Tentando setar o bloco %d que nao existe.", id_block);
+    if (type == BLOCK && id_bit >= superBloco.NofBlocks) {
+        printf("Tentando setar o bloco %d que nao existe.", id_bit);
         return -1;
-    } else if (type == INODE && id_block >= superBloco.NofBlocks) {
-        printf("Tentando setar o inode %d que nao existe.", id_block);
+    } else if (type == INODE && id_bit >= superBloco.NofBlocks) {
+        printf("Tentando setar o inode %d que nao existe.", id_bit);
         return -1;
     } else if (bit_state != 0 && bit_state != 1) {
         printf("Valor passado de bit invalido.\n");
         return -1;
     }
 
-    if (get_bitmap_state(id_block, type, superBloco) == bit_state) {
+    if (get_bitmap_state(id_bit, type, superBloco) == bit_state) {
         printf("\nNao eh necessario modificar o estado.\n");
         return 0;
     }
@@ -74,8 +74,8 @@ int set_on_bitmap(unsigned int id_block, short int bit_state, bitmap_type type, 
     int id_bitmap_inode = superBloco.BitmapInodes;
     char block_buffer[superBloco.BlockSize];
 
-    int section = id_block >> 3;
-    int offset  = id_block & 7;
+    int section = id_bit >> 3;
+    int offset  = 7 - (id_bit & 7);
 
     char new_section;
 
