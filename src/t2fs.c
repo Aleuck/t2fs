@@ -383,14 +383,13 @@ FILE2 create2(char *filename)
     struct t2fs_record *new_file;
     struct t2fs_inode *new_file_inode;
     struct t2fs_inode *dir_inode;
-    OPEN_FILE *current_dir;
 
     int idx = get_free_bit_on_bitmap(INODE);
     printf("Primeiro indice livre de inode e %d", idx);
 
-    // TODO: No momento assuma que diretorio atual e o primeiro da lista. Necessario Arrumar
-    current_dir = open_directories->first;
-    dir_inode = current_dir->inode;
+    // TODO: No momento só guarda no diretório corrente, 
+    //       não permite passagem do caminho completo.
+    dir_inode = &current_dir;
 
     // Cria o record para o arquivo
     new_file                 = malloc(sizeof *new_file);
@@ -406,7 +405,7 @@ FILE2 create2(char *filename)
     // TODO: Adicionar Record no Arquivo.
     // ...
     // ...
-    return 0;
+    return open2(filename);
 }
 
 int delete2(char *filename)
