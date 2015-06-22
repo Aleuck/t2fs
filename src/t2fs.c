@@ -6,6 +6,7 @@
 #include "../include/apidisk.h"
 #include "../include/bitmap_operations.h"
 #include "../include/block_io.h"
+#include "../include/filepath_operations.h"
 
 #define INODE_SIZE 64
 #define RECORD_SIZE 64
@@ -30,9 +31,10 @@ struct t2fs_superbloco superBloco;
 int current_handle = 0;       // Indica o valor do handle do prox. arquivo aberto
 OPEN_FILES *open_files;       // Lista encadeada dos arquivos abertos
 OPEN_FILES *open_directories; // Lista encadeada dos diretorios abertos
+struct t2fs_inode current_dir;
 
 /* Prototipo de Funcoes */
-struct t2fs_inode* read_i_node(int id_inode);
+
 void checkSuperBloco();
 
 
@@ -406,6 +408,9 @@ FILE2 create2(char *filename)
 int delete2(char *filename)
 {
     checkSuperBloco();
+    print_bitmap(BLOCK, superBloco);
+    printf("\nINODES\n");
+    print_bitmap(INODE, superBloco);
     return 0;
 }
 
@@ -601,12 +606,13 @@ int closedir2(DIR2 handle)
 int chdir2(char *pathname)
 {
     checkSuperBloco();
-    return 0;
+    return find_inode_from_path(superBloco, pathname, current_dir, &current_dir);
 }
 
 int getcwd2(char *pathname, int size)
 {
     checkSuperBloco();
+    printf("current inode first block index: %u\n", current_dir.dataPtr[0]);
     return 0;
 }
 
@@ -652,5 +658,7 @@ void checkSuperBloco()
 
         superBloco.FirstDataBlock = (BYTE) buffer_super_bloco[32] + ((BYTE) buffer_super_bloco[33] << 8) +
             ((BYTE) buffer_super_bloco[34] << 16) + ((BYTE) buffer_super_bloco[35] << 24);
+
+        current_dir = *read_i_node(0); //define diretório raíz como diretório atual
     }
 }

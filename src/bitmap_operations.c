@@ -14,7 +14,7 @@ int get_bitmap_state(unsigned int id_bit, bitmap_type type, struct t2fs_superblo
     if (type == BLOCK && id_bit >= superBloco.NofBlocks) {
         printf("get_bitmap_state(..) com bloco maior do que o numero de blocos do disco.\n");
         return -1;
-    } else if (type == INODE && 0 /*TODO: Checar o numero de inodes */) {
+    } else if (type == INODE && id_bit >= superBloco.NofBlocks) {
         printf("git_bitmap_state(..) com inode maior do que o numero de inodes no disco.\n");
         return -1;
     }
@@ -33,7 +33,7 @@ int get_bitmap_state(unsigned int id_bit, bitmap_type type, struct t2fs_superblo
         read_block(bitmap_block, buffer, superBloco);
     } else if (type == INODE) {
         DWORD bitmap_block = superBloco.BitmapInodes;
-        //printf("\nO bitmap de blocos esta localizado no bloco: %d\n", bitmap_block);
+        //printf("\nO bitmap de inodes esta localizado no bloco: %d\n", bitmap_block);
         //printf("secao: %d\noffset: %d\n", section, offset);
 
         read_block(bitmap_block, buffer, superBloco);
@@ -44,12 +44,20 @@ int get_bitmap_state(unsigned int id_bit, bitmap_type type, struct t2fs_superblo
     return bit;
 }
 
+void print_bitmap(bitmap_type type, struct t2fs_superbloco superBloco)
+{
+    unsigned int i;
+    for (i = 0; i < superBloco.NofBlocks; i++) {
+        printf("%d ", get_bitmap_state(i, type, superBloco));
+    }
+}
+
 int set_on_bitmap(unsigned int id_block, short int bit_state, bitmap_type type, struct t2fs_superbloco superBloco)
 {
     if (type == BLOCK && id_block >= superBloco.NofBlocks) {
         printf("Tentando setar o bloco %d que nao existe.", id_block);
         return -1;
-    } else if (type == INODE && 0 /*TODO: Verificar numero de inodes */) {
+    } else if (type == INODE && id_block >= superBloco.NofBlocks) {
         printf("Tentando setar o inode %d que nao existe.", id_block);
         return -1;
     } else if (bit_state != 0 && bit_state != 1) {
