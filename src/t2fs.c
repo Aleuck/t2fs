@@ -62,16 +62,26 @@ void write_records_on_block(int id_block, struct t2fs_record *records)
 int add_record_to_dir(struct t2fs_inode dir_inode, struct t2fs_record file_record)
 {
     // TODO: Por enquanto pega somente o primeiro bloco do inode.
-    DWORD id_block = current_dir.dataPtr[0];
-    struct t2fs_record records[get_records_in_block()];
-    read_records(id_block, records);
+    int records_in_block = get_records_in_block();
+    struct t2fs_record records[records_in_block];
+    DWORD id_block;
+    int dataPtr_index;
+    int record_index;
 
-    int i = 0;
-    while (records[i].TypeVal != TYPEVAL_INVALIDO) {
-        i++;
+    for (dataPtr_index = 0; dataPtr_index < 10; dataPtr_index++) {
+        id_block = current_dir.dataPtr[dataPtr_index];
+        read_records(id_block, records);
+        for (record_index = 0; record_index < records_in_block; record_index++) {
+            if (records[record_index].TypeVal != TYPEVAL_INVALIDO) {
+                break;
+            }
+        }
+        if (record_index == records_in_block) {
+            break;
+        }
     }
 
-    records[i] = file_record;
+    records[record_index] = file_record;
     write_records_on_block(id_block, records);
     return 0;
 }
