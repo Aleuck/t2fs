@@ -61,7 +61,7 @@ void write_records_on_block(int id_block, struct t2fs_record *records)
 
 int add_record_to_dir(struct t2fs_inode dir_inode, struct t2fs_record file_record)
 {
-    // TODO: Por enquanto pega somente o primeiro bloco do inode.
+    // TODO: Por enquanto pega somente o primeiro inode.
     int records_in_block = get_records_in_block();
     struct t2fs_record records[records_in_block];
     DWORD id_block;
@@ -76,9 +76,15 @@ int add_record_to_dir(struct t2fs_inode dir_inode, struct t2fs_record file_recor
                 break;
             }
         }
-        if (record_index == records_in_block) {
+        if (record_index != records_in_block) {
+            // Índice livre encontrado
             break;
         }
+    }
+    if (record_index == records_in_block) {
+        // TODO: Não encontrou nenhum record livre em nenhum dos 10 blocos
+        //       do i-node, necessário implementar a indireção.
+        return -1;
     }
 
     records[record_index] = file_record;
