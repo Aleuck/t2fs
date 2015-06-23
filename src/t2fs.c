@@ -37,6 +37,7 @@ struct t2fs_inode current_dir;
 
 void checkSuperBloco();
 void print_record(struct t2fs_record record);
+int get_ptrs_in_block();
 
 /***********************************/
 /* Definicao do corpo das Funcoes **/
@@ -59,20 +60,24 @@ void write_records_on_block(int id_block, struct t2fs_record *records)
     write_block(id_block, buffer, superBloco);
 }
 
-int add_record_to_inode(struct t2fs_inode inode, struct t2fs_record file_record)
+int add_record_to_data_ptr_array(DWORD *dataPtr, int dataPtrLength, struct t2fs_record file_record)
 {
-    // TODO: Por enquanto pega somente o primeiro inode.
     int records_in_block = get_records_in_block();
     struct t2fs_record records[records_in_block];
     DWORD id_block;
     int dataPtr_index;
     int record_index;
 
-    for (dataPtr_index = 0; dataPtr_index < 10; dataPtr_index++) {
-        id_block = inode.dataPtr[dataPtr_index];
+    for (dataPtr_index = 0; dataPtr_index < dataPtrLength; dataPtr_index++) {
+        id_block = dataPtr[dataPtr_index];
+        if (id_block == 0x0FFFFFFFF) {
+            // TODO: criar novo bloco?
+            continue;
+        }
         read_records(id_block, records);
         for (record_index = 0; record_index < records_in_block; record_index++) {
             if (records[record_index].TypeVal == TYPEVAL_INVALIDO) {
+                // encontrada posição livre
                 break;
             }
         }
@@ -81,15 +86,48 @@ int add_record_to_inode(struct t2fs_inode inode, struct t2fs_record file_record)
             break;
         }
     }
-    if (record_index == records_in_block) {
-        // TODO: Não encontrou nenhum record livre em nenhum dos 10 blocos
-        //       do i-node, necessário implementar a indireção.
-        return -1;
+    if (record_index != records_in_block) {
+        records[record_index] = file_record;
+        write_records_on_block(id_block, records);
+        return 0;
     }
+    return -1;
+}
 
-    records[record_index] = file_record;
-    write_records_on_block(id_block, records);
-    return 0;
+int add_record_to_inode(struct t2fs_inode inode, struct t2fs_record file_record)
+{
+    // TODO: Por enquanto pega somente o primeiro inode.
+    int ptrs_in_block = get_ptrs_in_block();
+    DWORD singleInd[ptrs_in_block];
+    DWORD doubleInd[ptrs_in_block];
+    int ptr_index;
+
+    // tenta inserir nos ponteiros diretos
+    if (add_record_to_data_ptr_array(inode.dataPtr, 10, file_record) == 0) {
+        return 0;
+    }
+    // tenta usar indireção simples
+    if (inode.singleIndPtr != 0x0FFFFFFFF) {
+        read_block(inode.singleIndPtr, (char*) singleInd, superBloco);
+        if (add_record_to_data_ptr_array(singleInd, ptrs_in_block, file_record) == 0) {
+            return 0;
+        }
+    } else {
+        // TODO: alocar bloco de indireção simples?
+    }
+    // tenta usar indireção dupla
+    if (inode.doubleIndPtr != 0x0FFFFFFFF) {
+        read_block(inode.doubleIndPtr, (char*) doubleInd, superBloco);
+        for (ptr_index = 0; ptr_index < ptrs_in_block; ptr_index++) {
+            read_block(doubleInd[ptr_index], (char*) singleInd, superBloco);
+            if (add_record_to_data_ptr_array(singleInd, ptrs_in_block, file_record) == 0) {
+                return 0;
+            }
+        }
+    } else {
+        // TODO: alocar bloco de indireção dupla?
+    }
+    return -1;
 }
 
 void print_record(struct t2fs_record record)
@@ -120,6 +158,11 @@ void print_record(struct t2fs_record record)
 int get_records_in_block()
 {
     return superBloco.BlockSize / RECORD_SIZE;
+}
+
+int get_ptrs_in_block()
+{
+    return superBloco.BlockSize / sizeof(DWORD);
 }
 
 /**
