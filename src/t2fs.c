@@ -37,6 +37,7 @@ struct t2fs_inode current_dir;
 
 void checkSuperBloco();
 void print_record(struct t2fs_record record);
+OPEN_FILE* get_file_from_list(int handle, file_type type);
 
 /***********************************/
 /* Definicao do corpo das Funcoes **/
@@ -409,7 +410,7 @@ int identify2(char *name, int size)
 }
 
 /**
- *  Funcao que cria um novo arquivo, dado o seu nome.
+ *  Funcao que cria um novo arquivo no diretorio atual, dado o seu nome.
  */
 FILE2 create2(char *filename)
 {
@@ -530,9 +531,44 @@ int read2(FILE2 handle, char *buffer, int size)
     return 0;
 }
 
+int get_block_id_from_inode(int relative_index, struct t2fs_inode *inode)
+{
+    if (relative_index < 10) {
+        return inode->dataPtr[relative_index];
+    }
+    // Se chegar aqui, esta nos ponteiros indiretos
+    return 0;
+}
+
+/**
+ *  Funcao que dado o handle do arquivo, escreve no mesmo o conteudo
+ *  de buffer
+ */
 int write2(FILE2 handle, char *buffer, int size)
 {
     checkSuperBloco();
+
+    int block_size     = superBloco.BlockSize;
+    OPEN_FILE *file   = get_file_from_list(handle, FILE_TYPE);
+    int position      = file->position;
+    unsigned int i;
+
+    unsigned int first_block_id    = position / block_size;
+    unsigned int blocks_to_read = ((position + size) / block_size) + 1;
+    unsigned int block_id;
+    char to_write[blocks_to_read][block_size];
+
+    if (first_block_id < 10) {
+        block_id = file->inode->dataPtr[first_block_id];
+    } else {
+        printf("ARQUIVO E BEM GRANDE!");
+        return -1;
+    }
+
+    for (i = 0; i < blocks_to_read; i++) {
+        read_block(block_id + i, to_write[i], superBloco);
+    }
+
     return 0;
 }
 
