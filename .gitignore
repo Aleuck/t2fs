@@ -2,9 +2,14 @@
 CMakeLists.txt
 *.a
 t2fs.o
-t2fs_disk.dat
-teste
 bitmap_operations.o
 block_io.o
 filepath_operations.o
+lib/t2fs.o
+lib/bitmap_operations.o
+lib/block_io.o
+lib/filepath_operations.o
 main.o
+teste
+t2fs_disk.dat
+bin/
