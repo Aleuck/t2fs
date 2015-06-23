@@ -12,7 +12,6 @@
 #define RECORD_SIZE 64
 #define MAX_OPEN_FILES 20
 #define INVALID_POINTER 0x0FFFFFFFF
-#define N_OF_INDICES superBloco.BlockSize / sizeof(DWORD)
 
 typedef enum {FILE_TYPE, DIR_TYPE} file_type;
 
@@ -44,6 +43,10 @@ OPEN_FILE* get_file_from_list(int handle, file_type type);
 /***********************************/
 /* Definicao do corpo das Funcoes **/
 /***********************************/
+int get_num_indices()
+{
+    return superBloco.BlockSize / sizeof(DWORD);
+}
 
 void write_records_on_block(int id_block, struct t2fs_record *records)
 {
@@ -62,7 +65,7 @@ void write_records_on_block(int id_block, struct t2fs_record *records)
     write_block(id_block, buffer, superBloco);
 }
 
-int add_record_to_dir(struct t2fs_inode dir_inode, struct t2fs_record file_record)
+int add_record_to_inode(struct t2fs_inode inode, struct t2fs_record file_record)
 {
     // TODO: Por enquanto pega somente o primeiro inode.
     int records_in_block = get_records_in_block();
@@ -72,7 +75,7 @@ int add_record_to_dir(struct t2fs_inode dir_inode, struct t2fs_record file_recor
     int record_index;
 
     for (dataPtr_index = 0; dataPtr_index < 10; dataPtr_index++) {
-        id_block = current_dir.dataPtr[dataPtr_index];
+        id_block = inode.dataPtr[dataPtr_index];
         read_records(id_block, records);
         for (record_index = 0; record_index < records_in_block; record_index++) {
             if (records[record_index].TypeVal == TYPEVAL_INVALIDO) {
@@ -444,7 +447,7 @@ FILE2 create2(char *filename)
     write_inode(idx, new_file_inode);
     free(new_file_inode);
 
-    add_record_to_dir(current_dir, *new_file_record);
+    add_record_to_inode(current_dir, *new_file_record);
 
     return open2(filename);
 }
@@ -539,13 +542,13 @@ int read2(FILE2 handle, char *buffer, int size)
  */
 DWORD* get_indices(int id_block)
 {
-    DWORD *indices = malloc(N_OF_INDICES * sizeof(*indices));
+    DWORD *indices = malloc(get_num_indices() * sizeof(*indices));
 
     char buffer[superBloco.BlockSize];
     read_block(id_block, buffer, superBloco);
 
     unsigned int i;
-    for (i = 0; i < N_OF_INDICES; i++) {
+    for (i = 0; i < get_num_indices(); i++) {
         indices[i] = (DWORD) buffer[i * sizeof(DWORD)];
     }
 
@@ -576,7 +579,7 @@ int get_block_id_from_inode(int relative_index, struct t2fs_inode *inode)
         return -1;
     }
     int id_singleInd_block = relative_index - 10;
-    if (id_singleInd_block >= 0 && id_singleInd_block < N_OF_INDICES) { // Indice pertence aos blocos indiretos
+    if (id_singleInd_block >= 0 && id_singleInd_block < get_num_indices()) { // Indice pertence aos blocos indiretos
         DWORD *indices = get_indices(inode->singleIndPtr);
         pointer = indices[id_singleInd_block];
 
