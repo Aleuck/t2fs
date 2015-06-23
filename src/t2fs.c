@@ -11,6 +11,8 @@
 #define INODE_SIZE 64
 #define RECORD_SIZE 64
 #define MAX_OPEN_FILES 20
+#define INVALID_POINTER 0x0FFFFFFFF
+#define N_OF_INDICES superBloco.BlockSize / sizeof(DWORD)
 
 typedef enum {FILE_TYPE, DIR_TYPE} file_type;
 
@@ -368,10 +370,10 @@ void initialize_inode(struct t2fs_inode *inode)
 {
     int i;
     for (i = 0; i < 10; i++) {
-        inode->dataPtr[i] = 0x0FFFFFFFF;
+        inode->dataPtr[i] = INVALID_POINTER;
     }
-    inode->singleIndPtr = 0x0FFFFFFFF;
-    inode->doubleIndPtr = 0x0FFFFFFFF;
+    inode->singleIndPtr = INVALID_POINTER;
+    inode->doubleIndPtr = INVALID_POINTER;
 }
 
 /************************************************/
@@ -442,9 +444,8 @@ FILE2 create2(char *filename)
     write_inode(idx, new_file_inode);
     free(new_file_inode);
 
-    // TODO: Adicionar Record no Arquivo.
     add_record_to_dir(current_dir, *new_file_record);
-    // ...
+
     return open2(filename);
 }
 
@@ -531,13 +532,71 @@ int read2(FILE2 handle, char *buffer, int size)
     return 0;
 }
 
+/**
+ *  Dado o id de um bloco, retorna um array com os indices contidos nesse bloco.
+ *  O array é alocado dinamicamente, entao é responsabilidade do chamador desalocar
+ *  a memória.
+ */
+DWORD* get_indices(int id_block)
+{
+    DWORD *indices = malloc(N_OF_INDICES * sizeof(*indices));
+
+    char buffer[superBloco.BlockSize];
+    read_block(id_block, buffer, superBloco);
+
+    unsigned int i;
+    for (i = 0; i < N_OF_INDICES; i++) {
+        indices[i] = (DWORD) buffer[i * sizeof(DWORD)];
+    }
+
+    return indices;
+}
+
+/**
+ *  Dado um indice e um inode, retorna o indice do bloco está relacionado a ele no inode.
+ *  Se o indice nao for encontrado, retorna -1.
+ *
+ *  Ex.: Se passado o indice 9, retornara o 9 indice do bloco relacionado a esse indice,
+ *       no caso inode->dataPtr[9]. O mesmo é valido para blocos indiretos.
+ */
 int get_block_id_from_inode(int relative_index, struct t2fs_inode *inode)
 {
+    DWORD pointer;
     if (relative_index < 10) {
-        return inode->dataPtr[relative_index];
+        pointer = inode->dataPtr[relative_index];
+        if (pointer == INVALID_POINTER) {
+            printf("ERRO: inode nao contem bloco relativo de indice %d", relative_index);
+            return -1;
+        } else {
+            return pointer;
+        }
     }
-    // Se chegar aqui, esta nos ponteiros indiretos
-    return 0;
+    if (inode->singleIndPtr == INVALID_POINTER) {
+        printf("ERRO: inode nao contem bloco relativo de indice %d", relative_index);
+        return -1;
+    }
+    int id_singleInd_block = relative_index - 10;
+    if (id_singleInd_block >= 0 && id_singleInd_block < N_OF_INDICES) { // Indice pertence aos blocos indiretos
+        DWORD *indices = get_indices(inode->singleIndPtr);
+        pointer = indices[id_singleInd_block];
+
+        if (pointer == INVALID_POINTER) {
+            printf("ERRO: inode nao contem bloco relativo de indice %d", relative_index);
+            return -1;
+        }
+
+        free(indices);
+        return pointer;
+    }
+    // Se chegar aqui, esta nos blocos com duas indireções
+    if (inode->doubleIndPtr == INVALID_POINTER) {
+        printf("ERRO: inode nao contem bloco relativo de indice %d", relative_index);
+        return -1;
+    }
+    printf("JESUS CRISTO, AINDA NAO TA IMPLEMENTADO PRA ARQUIVOS TAO GRANDES");
+    //int id = relative_index - 10 - N_OF_INDICES;
+    //DWORD *first_lvl_id = get_indices(inode->doubleIndPtr);
+    return -1;
 }
 
 /**
