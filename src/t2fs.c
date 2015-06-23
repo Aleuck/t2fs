@@ -42,7 +42,42 @@ void checkSuperBloco();
 /* Definicao do corpo das Funcoes **/
 /***********************************/
 
-void print_record(struct t2fs_record record) {
+void write_records_on_block(int id_block, struct t2fs_record *records)
+{
+    char buffer[superBloco.BlockSize];
+    read_block(id_block, buffer, superBloco);
+
+    int i;
+    for (i = 0; i < get_records_in_block(); i++) {
+        memcpy(buffer+(i*RECORD_SIZE), &records[i].TypeVal, 1);
+        memcpy(buffer+(i*RECORD_SIZE)+1, &records[i].name, 31);
+        memcpy(buffer+(i*RECORD_SIZE)+32, &records[i].blocksFileSize, 4);
+        memcpy(buffer+(i*RECORD_SIZE)+36, &records[i].bytesFileSize, 4);
+        memcpy(buffer+(i*RECORD_SIZE)+40, &records[i].i_node, 4);
+        memcpy(buffer+(i*RECORD_SIZE)+44, &records[i].Reserved, 20);
+    }
+    write_block(id_block, buffer, superBloco);
+}
+
+int add_record_to_dir(struct t2fs_inode dir_inode, struct t2fs_record file_record)
+{
+    // TODO: Por enquanto pega somente o primeiro bloco do inode.
+    DWORD id_block = current_dir.dataPtr[0];
+    struct t2fs_record records[get_records_in_block()];
+    read_records(id_block, records);
+
+    int i = 0;
+    while (records[i].TypeVal != TYPEVAL_INVALIDO) {
+        i++;
+    }
+
+    records[i] = file_record;
+    write_records_on_block(id_block, records);
+    return 0;
+}
+
+void print_record(struct t2fs_record record)
+{
     printf("Tipo: ");
     switch (record.TypeVal){
         case 0:
@@ -310,19 +345,6 @@ int add_opened_file_to_list(OPEN_FILE *open_file, file_type type)
 }
 
 /**
- *  Funcao que retorna o indice do primeiro elemento livre no
- *  bitmap indicado por *type*.
- */
-int get_free_bit_on_bitmap(bitmap_type type)
-{
-    int idx = 0;
-    while (get_bitmap_state(idx, type, superBloco) != 0) {
-        idx++;
-    }
-    return idx;
-}
-
-/**
  *  Funcao que seta todas entradas do inode para 0x0FFFFFFFF
  */
 void initialize_inode(struct t2fs_inode *inode)
@@ -339,7 +361,8 @@ void initialize_inode(struct t2fs_inode *inode)
 /* Definicao das funcoes principais do trabalho */
 /************************************************/
 
-int identify2(char *name, int size) {
+int identify2(char *name, int size)
+{
     int i = 0;
     char ids[] = "Alexandre Leuck (...), Gianei Sebastiany (213502)"
         " e Leonardo Hahn (207684)\n\0";
@@ -380,30 +403,30 @@ FILE2 create2(char *filename)
         return -1;
     }
 
-    struct t2fs_record *new_file;
+    struct t2fs_record *new_file_record;
     struct t2fs_inode *new_file_inode;
-    struct t2fs_inode *dir_inode;
 
-    int idx = get_free_bit_on_bitmap(INODE);
+    int idx = get_free_bit_on_bitmap(INODE, superBloco);
     printf("Primeiro indice livre de inode e %d", idx);
 
-    // TODO: No momento só guarda no diretório corrente, 
+    // TODO: No momento só guarda no diretório corrente,
     //       não permite passagem do caminho completo.
-    dir_inode = &current_dir;
 
     // Cria o record para o arquivo
-    new_file                 = malloc(sizeof *new_file);
-    new_file->TypeVal        = TYPEVAL_REGULAR;
-    new_file->i_node         = idx;
-    new_file->blocksFileSize = 1;         // ocupa 1 inode quando criado
-    new_file->bytesFileSize  = 31;        // TODO: 31 bytes?? ou 0? (31 bytes tem o nome)
-    strncpy(new_file->name, filename, 31);
+    new_file_record                 = malloc(sizeof *new_file_record);
+    new_file_record->TypeVal        = TYPEVAL_REGULAR;
+    new_file_record->i_node         = idx;
+    new_file_record->blocksFileSize = 1;         // ocupa 1 inode quando criado
+    new_file_record->bytesFileSize  = 31;        // TODO: 31 bytes?? ou 0? (31 bytes tem o nome)
+    strncpy(new_file_record->name, filename, 31);
     // Cria inode para arquivo
     new_file_inode = malloc(sizeof *new_file_inode);
     initialize_inode(new_file_inode);
     write_inode(idx, new_file_inode);
+    free(new_file_inode);
+
     // TODO: Adicionar Record no Arquivo.
-    // ...
+    add_record_to_dir(current_dir, *new_file_record);
     // ...
     return open2(filename);
 }

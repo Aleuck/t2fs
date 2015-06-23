@@ -110,3 +110,16 @@ int set_on_bitmap(unsigned int id_bit, short int bit_state, bitmap_type type, st
 
     return 0;
 }
+
+/**
+ *  Funcao que retorna o indice do primeiro elemento livre no
+ *  bitmap indicado por *type*.
+ */
+int get_free_bit_on_bitmap(bitmap_type type, struct t2fs_superbloco superBloco)
+{
+    int idx = 0;
+    while (get_bitmap_state(idx, type, superBloco) != 0) {
+        idx++;
+    }
+    return idx;
+}
