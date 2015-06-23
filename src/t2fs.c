@@ -36,7 +36,7 @@ struct t2fs_inode current_dir;
 /* Prototipo de Funcoes */
 
 void checkSuperBloco();
-
+void print_record(struct t2fs_record record);
 
 /***********************************/
 /* Definicao do corpo das Funcoes **/
@@ -72,7 +72,7 @@ int add_record_to_dir(struct t2fs_inode dir_inode, struct t2fs_record file_recor
         id_block = current_dir.dataPtr[dataPtr_index];
         read_records(id_block, records);
         for (record_index = 0; record_index < records_in_block; record_index++) {
-            if (records[record_index].TypeVal != TYPEVAL_INVALIDO) {
+            if (records[record_index].TypeVal == TYPEVAL_INVALIDO) {
                 break;
             }
         }
@@ -179,7 +179,7 @@ int write_inode(int id_inode, struct t2fs_inode *inode)
     read_block(superBloco.InodeBlock + block_relative, buffer, superBloco);
 
     for (i = 0; i < 10; i++) {
-        memcpy(buffer+inode_relative+(i*4), inode->dataPtr+i, 4);
+        memcpy(buffer+inode_relative+(i*4), &inode->dataPtr[i], 4);
     }
 
     memcpy(buffer+inode_relative+40, &inode->singleIndPtr, 4);
@@ -434,7 +434,7 @@ FILE2 create2(char *filename)
     new_file_record->i_node         = idx;
     new_file_record->blocksFileSize = 1;         // ocupa 1 inode quando criado
     new_file_record->bytesFileSize  = 31;        // TODO: 31 bytes?? ou 0? (31 bytes tem o nome)
-    strncpy(new_file_record->name, filename, 31);
+    memcpy(new_file_record->name, filename, 31);
     // Cria inode para arquivo
     new_file_inode = malloc(sizeof *new_file_inode);
     initialize_inode(new_file_inode);

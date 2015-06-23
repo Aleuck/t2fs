@@ -87,12 +87,9 @@ int set_on_bitmap(unsigned int id_bit, short int bit_state, bitmap_type type, st
 
     switch (bit_state) {
     case 0:
-        printf("\nAntiga section %d\n", (int) block_buffer[section]);
         new_section = block_buffer[section] - (1 << (7 - offset));
-        printf("Nova section %d\n", (int) new_section);
         break;
     case 1:
-        printf("to ENTRANDO");
         new_section = block_buffer[section] + (1 << (7 - offset));
         break;
     default:
