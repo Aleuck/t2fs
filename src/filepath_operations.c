@@ -218,6 +218,7 @@ int last_index_of(char ch, char *string)
         if (string[i] == ch) {
             last_index = i;
         }
+        i++;
     }
     return last_index;
 }

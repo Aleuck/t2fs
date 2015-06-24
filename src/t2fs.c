@@ -1053,32 +1053,25 @@ int mkdir2(char *pathname)
     char name[31];
     memset(&dest_path, 0, sizeof(PATH));
 
+    if (!is_path_consistent(pathname)) {
+        return -1;
+    }
+
     // allow relative paths
     copy_path(&dest_path, &current_path);
 
+
     int bar_index = last_index_of('/', pathname);
+
+
     if (bar_index != -1) {
         strncpy(name, &pathname[bar_index+1], sizeof(name));
-        pathname[bar_index] = '\0';
+        pathname[bar_index + 1] = '\0';
         chdir2_generic(&dest_path, pathname);
     } else {
         strncpy(name, pathname, sizeof(name));
     }
-    //acha inode
-    //char *before_filename = get_string_before_last_bar(filename);
-    //struct t2fs_inode creating_inode;
-    // if (*before_filename != 0){ //se nome não tem barras
-    //     find_inode_from_path(superBloco, filename, current_dir, &creating_inode);
-    // } else {
-    //     creating_inode = current_dir;
-    // }
 
-    //char *striped_filename = get_string_after_bar(filename);
-
-    //if (!is_name_consistent(striped_filename)) {
-    if (!is_path_consistent(pathname)) {
-        return -1;
-    }
 
     struct t2fs_record *new_directory_record;
     struct t2fs_inode *new_directory_inode;
@@ -1102,38 +1095,16 @@ int mkdir2(char *pathname)
     new_directory_inode = malloc(sizeof *new_directory_inode);
     initialize_inode(new_directory_inode);
     write_inode(idx, new_directory_inode);
+    free(new_directory_inode);
 
-
-    //add_record_to_inode(creating_inode, *new_directory_record);
+    // get inode where the dir is being created
     struct t2fs_inode current_dir;
     current_dir = read_i_node(dest_path.current->record.i_node);
+
     add_record_to_inode(current_dir, *new_directory_record);
     free(new_directory_record);
 
-    // Cria o record para o self '.'
-    struct t2fs_record *self_record;
-    self_record = malloc(sizeof *self_record);
-    self_record->TypeVal        = TYPEVAL_DIRETORIO;
-    self_record->i_node         = idx;
-    self_record->blocksFileSize = 1;         // ocupa 1 inode quando criado
-    self_record->bytesFileSize  = RECORD_SIZE * 2;        // ocupa dois records
-    memcpy(self_record->name, ".\n", 2);
-    add_record_to_inode(*new_directory_inode, *self_record);
-    free(self_record);
 
-    // Cria o record para o pai '..'
-    struct t2fs_record *father_record;
-    int idx_pai = 0; //TODO pai nao eh sempre rais
-    father_record = malloc(sizeof *father_record);
-    father_record->TypeVal        = TYPEVAL_DIRETORIO;
-    father_record->i_node         = idx_pai;
-    father_record->blocksFileSize = -1;         // TODO tamanho de blocos do dir pai?
-    father_record->bytesFileSize  = -1;        //  TODO tamanho do dir pai? imagina atualizar tudo isso
-    memcpy(father_record->name, "..\n", 3);
-    add_record_to_inode(*new_directory_inode, *father_record);
-    free(father_record);
-
-    free(new_directory_inode);
     return opendir2(pathname);
 }
 
