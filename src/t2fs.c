@@ -474,16 +474,19 @@ int is_path_consistent(char *strpath)
                     if (namelength == 0 || namelength == 1) {
                         if (strpath[i - namelength] == '.') {
                             // se seguido de /
-                            if (strpath[i - namelength + 1] == '/') {
+                            if (strpath[i - namelength + 1] == '/' ||
+                                strpath[i - namelength + 1] == '\0') {
                                 i++;
                                 namelength++;
                                 continue;
                             }
-                            if (strpath[i - namelength + 1] == '.' &&
-                                strpath[i - namelength + 2] == '/'){
-                                i++;
-                                namelength++;
-                                continue;
+                            if (strpath[i - namelength + 1] == '.') {
+                                if (strpath[i - namelength + 2] == '/' ||
+                                    strpath[i - namelength + 2] == '\0') {
+                                    i++;
+                                    namelength++;
+                                    continue;
+                                }
                             }
                         }
                     }
