@@ -464,7 +464,18 @@ FILE2 create2(char *filename)
 {
     checkSuperBloco();
 
-    if (!is_name_consistent(filename)) {
+    //acha inode
+    char *before_filename = get_string_before_last_bar(filename);
+    struct t2fs_inode creating_inode;
+    if (*before_filename != 0){ //se nome não tem barras
+        find_inode_from_path(superBloco, filename, current_dir, &creating_inode);
+    } else {
+        creating_inode = current_dir;
+    }
+
+    char *striped_filename = get_string_after_bar(filename);
+
+    if (!is_name_consistent(striped_filename)) {
         return -1;
     }
 
@@ -482,15 +493,16 @@ FILE2 create2(char *filename)
     new_file_record->TypeVal        = TYPEVAL_REGULAR;
     new_file_record->i_node         = idx;
     new_file_record->blocksFileSize = 1;         // ocupa 1 inode quando criado
-    new_file_record->bytesFileSize  = 31;        // TODO: 31 bytes?? ou 0? (31 bytes tem o nome)
-    memcpy(new_file_record->name, filename, 31);
+    new_file_record->bytesFileSize  = superBloco.BlockSize;        // TODO-: 31 bytes?? ou 0? --> tamanho do arquivo = tamanho bloco x blocs usados
+    memcpy(new_file_record->name, striped_filename, 31);
+
     // Cria inode para arquivo
     new_file_inode = malloc(sizeof *new_file_inode);
     initialize_inode(new_file_inode);
     write_inode(idx, new_file_inode);
     free(new_file_inode);
 
-    add_record_to_inode(current_dir, *new_file_record);
+    add_record_to_inode(creating_inode, *new_file_record);
 
     return open2(filename);
 }

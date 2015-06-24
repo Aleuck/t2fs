@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "../include/t2fs.h"
 #include "../include/apidisk.h"
+#include "../include/filepath_operations.h"
 
 void ls(DIR2 dirHandle)
 {
@@ -13,13 +14,14 @@ void ls(DIR2 dirHandle)
 
 int main(int argc, char *argv[])
 {
-    create2("MeuArquivo");
-    create2("LeoArq\0");
-    create2("HAHAHA");
-
-    printf("\n\n");
+//    create2("MeuArquivo");
+//    create2("LeoArq\0");
+//    create2("HAHAHA");
+//
+//    printf("\n\n");
     DIR2 handle = opendir2("/");
     ls(handle);
+//    create2("MeuArquivo");
 //    // Qual a diferenca entra fechar um arquivo ou um diretorio??
 //    close2(0);
 
@@ -29,6 +31,12 @@ int main(int argc, char *argv[])
     /* getcwd2(teste, 30); */
 
 //    delete2("bla");
+    char teste[] = "es/as";
+    char *striped = get_string_after_bar(teste);
+    printf("striped: %s\n",striped);
+    striped = get_string_before_last_bar(teste);
+    printf("stripedB: %s\n",striped);
+    printf ("s%d",*striped);
 
     return 0;
 }

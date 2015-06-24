@@ -184,3 +184,29 @@ int find_inode_from_path(struct t2fs_superbloco superBloco, char *filename, stru
     found_inode = current_inode;
     return 1;
 }
+
+size_t strlstchar(const char *str, const char ch)
+{
+    char *chptr = strrchr(str, ch);
+    if (chptr == NULL)
+        return 0;
+    return chptr - str +1;
+}
+
+char * get_string_after_bar(char *search)
+{
+    char* result    = 0;
+    size_t position = strlstchar (search, '/');
+    result = malloc(sizeof(char*) * (strlen(search) - position));
+    memcpy( result, search + position , (strlen(search) - position) );
+    return result;
+}
+
+char * get_string_before_last_bar(char *search)
+{
+    char* result    = 0;
+    size_t position = strlstchar (search, '/');
+    result = malloc(sizeof(char*) * position);
+    memcpy( result, search, position );
+    return result;
+}
