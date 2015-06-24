@@ -17,7 +17,7 @@ typedef enum {FILE_TYPE, DIR_TYPE} file_type;
 
 typedef struct open_file {
     struct t2fs_inode *inode;
-    int position;
+    unsigned int position;
     int handle;
     struct open_file *next;
 } OPEN_FILE;
@@ -46,6 +46,7 @@ void checkSuperBloco();
 void print_record(struct t2fs_record record);
 OPEN_FILE* get_file_from_list(int handle, file_type type);
 void print_indices(int id_block);
+int get_block_id_from_inode(int relative_index, struct t2fs_inode *inode);
 
 // frees path and set it to '/'
 int chdir2_root(CURRENT_PATH **current_path);
@@ -78,8 +79,6 @@ void write_records_on_block(int id_block, struct t2fs_record *records)
     }
     write_block(id_block, buffer, superBloco);
 }
-
-
 
 // Procura por um record com nome igual a *recordname,
 // se encontrar, retorna o indice no bloco e preenche *record com os respectivos dados
@@ -703,6 +702,23 @@ int close2(FILE2 handle)
 int read2(FILE2 handle, char *buffer, int size)
 {
     checkSuperBloco();
+
+    OPEN_FILE *file = get_file_from_list(handle, FILE_TYPE);
+    int position = file->position;
+    int block_size = superBloco.BlockSize;
+
+    int first_block = position / block_size;
+    unsigned int blocks_to_read = ((position + size) / block_size) + 1;
+    unsigned int i;
+    char to_read[blocks_to_read][block_size];
+    // Le todos os blocos que fazem parte de buffer
+    for (i = 0; i < blocks_to_read; i++) {
+        read_block(get_block_id_from_inode(first_block+i, file->inode), &to_read[i][0], superBloco);
+    }
+    for (i = 0; i < blocks_to_read; i++) {
+        memcpy(buffer+(i*size), &to_read[i][0], block_size);
+    }
+
     return 0;
 }
 
@@ -928,6 +944,13 @@ int write2(FILE2 handle, char *buffer, int size)
 int seek2(FILE2 handle, unsigned int offset)
 {
     checkSuperBloco();
+
+    OPEN_FILE *file = get_file_from_list(handle, FILE_TYPE);
+    if (offset == (unsigned int) -1) {
+        file->position = (unsigned int) -1;         // posicao -1 indica final do arquivo.
+    } else {
+        file->position = offset;    //
+    }
     return 0;
 }
 
