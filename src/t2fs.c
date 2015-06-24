@@ -451,6 +451,31 @@ int is_number(char c)
     }
 }
 
+int is_path_consistent(char *strpath)
+{
+    int i = 0;
+    int namelength = 0;
+    while (strpath[i] != '\0') {
+        if (strpath[i] == '/') {
+            i++;
+            namelength = 0;
+        } else {
+            if (i >= 30) {
+                printf("ERRO: Caminho invalido, nome com mais de 30 caracteres.\n");
+                return 0;
+            }
+            if (is_number(strpath[i]) || is_letter(strpath[i])) {
+                i++;
+                namelength++;
+            } else {
+                printf("ERRO: Caminho invalido, nome contem caractere invalido.\n");
+                return 0;
+            }
+        }
+    }
+    return 1;
+}
+
 /**
  *  Dado um nome de arquivo, verifica se o mesmo é consistente, isto é:
  *  tem no máximo 30 caracteres alfanuméricos.
@@ -1121,22 +1146,45 @@ int closedir2(DIR2 handle)
 
 int free_path(PATH *path)
 {
-    return -1;
+    PATH_NODE *dir;
+    while (path->current != NULL) {
+        dir = path->current;
+        path->current = path->current->previous;
+        free(dir);
+    }
+    return 0;
 }
 
 int copy_path(PATH *dest, const PATH *origin)
 {
-    return -1;
+    free_path(dest);
+
+    PATH_NODE *node = NULL, *copynode = NULL;
+
+    if (origin->current != NULL) {
+        node = origin->current;
+        dest->current = malloc(sizeof(PATH_NODE));
+        copynode = dest->current;
+        copynode->record = node->record;
+        copynode->previous = NULL;
+    }
+
+    while (node->previous != NULL) {
+        copynode->previous = malloc(sizeof(PATH_NODE));
+        copynode = copynode->previous;
+        node = node->previous;
+        copynode->record = node->record;
+        copynode->previous = NULL;
+    }
+
+    return 0;
 }
 
 // frees path and set it to '/'
 int chdir2_root(PATH *current_path) {
-    PATH_NODE *dir;
-    while (current_path->current != NULL) {
-        dir = current_path->current;
-        current_path->current = current_path->current->previous;
-        free(dir);
-    }
+
+    free_path(current_path);
+
     current_path->current = malloc(sizeof(PATH_NODE));
     current_path->current->previous = NULL;
     current_path->current->record.name[0] = '\0';
