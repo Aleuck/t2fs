@@ -750,7 +750,12 @@ int allocate_block_on_inode(struct t2fs_inode *inode)
     }
     // Nenhum indice livre em single ind.
     printf("\nAGORA TEM QUE FAZER O DUPLO ENDERECO\n");
-
+    if (inode->doubleIndPtr == INVALID_POINTER) {
+        new_id = get_free_bit_on_bitmap(BLOCK, superBloco);
+        inode->doubleIndPtr = new_id;
+        set_on_bitmap(inode->doubleIndPtr, 1, BLOCK, superBloco);
+        init_indices_block(inode->doubleIndPtr);
+    }
     return 0;
 }
 
