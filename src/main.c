@@ -15,15 +15,16 @@ void ls(DIR2 dirHandle)
 int main(int argc, char *argv[])
 {
     int handleArq = create2("Teste");
+    //printf("%d", handleArq);
     char buffer[] = "Que semestrezinho";
-    //write2(handle, buffer, 17);
+    write2(handleArq, buffer, 17);
 //    create2("MeuArquivo");
 //    create2("LeoArq\0");
 //    create2("HAHAHA");
 //
 //    printf("\n\n");
-    DIR2 handle = opendir2("/");
-ls(handle);
+//    DIR2 handle = opendir2("/");
+//ls(handle);
 //    create2("MeuArquivo");
 //    // Qual a diferenca entra fechar um arquivo ou um diretorio??
 //    close2(0);

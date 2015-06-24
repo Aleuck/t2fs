@@ -116,25 +116,26 @@ int find_record_in_inode(struct t2fs_inode dir_inode, char *record_name, struct 
     DWORD doubleInd[indices_in_block];
     int record_index;
     int acumulated_index = 0;
+    int i;
 
     record_index = find_record_in_index_array(dir_inode.dataPtr, 10, record_name, file_record);
     if (record_index != -1) {
         return record_index;
     }
     acumulated_index = 10;
-    if (dir_inode.singleIndPtr != 0x0FFFFFFFF) {
+    if (dir_inode.singleIndPtr != INVALID_POINTER) {
         read_block(dir_inode.singleIndPtr, (char*) singleInd, superBloco);
         record_index = find_record_in_index_array(singleInd, indices_in_block, record_name, file_record);
         if (record_index != -1) {
             return record_index + acumulated_index;
         }
     } else {
-        // return -1; // ?
+        return -1;
     }
     acumulated_index += indices_in_block;
-    if (dir_inode.doubleIndPtr != 0x0FFFFFFFF) {
+    if (dir_inode.doubleIndPtr != INVALID_POINTER) {
         read_block(dir_inode.doubleIndPtr, (char*) doubleInd, superBloco);
-        for (int i = 0; i < indices_in_block; i++) {
+        for (i = 0; i < indices_in_block; i++) {
             read_block(doubleInd[i], (char*) singleInd, superBloco);
             record_index = find_record_in_index_array(singleInd, indices_in_block, record_name, file_record);
             if (record_index != -1) {
@@ -186,6 +187,7 @@ int add_record_to_inode(struct t2fs_inode dir_inode, struct t2fs_record file_rec
     int ptrs_in_block = get_num_indices_in_block();
     DWORD singleInd[ptrs_in_block];
     DWORD doubleInd[ptrs_in_block];
+    int i;
 
     // tenta inserir nos ponteiros diretos
     if (add_record_to_index_array(dir_inode.dataPtr, 10, file_record) == 0) {
@@ -203,7 +205,7 @@ int add_record_to_inode(struct t2fs_inode dir_inode, struct t2fs_record file_rec
     // tenta usar indireção dupla
     if (dir_inode.doubleIndPtr != 0x0FFFFFFFF) {
         read_block(dir_inode.doubleIndPtr, (char*) doubleInd, superBloco);
-        for (int i = 0; i < ptrs_in_block; i++) {
+        for (i = 0; i < ptrs_in_block; i++) {
             read_block(doubleInd[i], (char*) singleInd, superBloco);
             if (add_record_to_index_array(singleInd, ptrs_in_block, file_record) == 0) {
                 return 0;
@@ -561,7 +563,7 @@ FILE2 create2(char *filename)
     struct t2fs_inode *new_file_inode;
 
     int idx = get_free_bit_on_bitmap(INODE, superBloco);
-    printf("Primeiro indice livre de inode e %d", idx);
+    //printf("Primeiro indice livre de inode e %d", idx);
 
     // TODO: No momento só guarda no diretório corrente,
     //       não permite passagem do caminho completo.
@@ -571,7 +573,7 @@ FILE2 create2(char *filename)
     new_file_record->TypeVal        = TYPEVAL_REGULAR;
     new_file_record->i_node         = idx;
     new_file_record->blocksFileSize = 1;         // ocupa 1 inode quando criado
-    new_file_record->bytesFileSize  = superBloco.BlockSize;        // TODO-: 31 bytes?? ou 0? --> tamanho do arquivo = tamanho bloco x blocs usados
+    new_file_record->bytesFileSize  = 0;        // TODO-: 31 bytes?? ou 0? --> tamanho do arquivo = tamanho bloco x blocs usados
     memcpy(new_file_record->name, striped_filename, 31);
 
     // Cria inode para arquivo
@@ -615,18 +617,18 @@ FILE2 open2(char *filename)
         printf("ERRO: numero maximo de arquivos abertos (20)");
         return -1;
     }
-    if (filename[0] == '/' && open_directories->first == NULL) { //diretório raíz e primeiro diretorio
-        OPEN_FILE *open_file = malloc(sizeof *open_file);
-        open_file->inode    = read_i_node(0);
-        open_file->position = 0;
-        open_file->handle   = current_handle;
-        open_file->next     = NULL;
-        add_opened_file_to_list(open_file, DIR_TYPE);
+    struct t2fs_record *file_record = malloc(sizeof(*file_record));
+    find_record_in_inode(current_dir, filename, file_record);
 
-        current_handle++;
-        return current_handle-1;
-    }
-    return -1;
+    OPEN_FILE *open_file = malloc(sizeof(*open_file));
+    open_file->inode = read_i_node(file_record->i_node);
+    open_file->position = 0;
+    open_file->handle = current_handle;
+    open_file->next = NULL;
+    add_opened_file_to_list(open_file, FILE_TYPE);
+
+    current_handle++;
+    return current_handle - 1;
 }
 
 /**
@@ -717,7 +719,7 @@ int get_block_id_from_inode(int relative_index, struct t2fs_inode *inode)
     if (relative_index < 10) {
         pointer = inode->dataPtr[relative_index];
         if (pointer == INVALID_POINTER) {
-            printf("ERRO: inode nao contem bloco relativo de indice %d", relative_index);
+            printf("ERRO: inode nao contem bloco relativo de indice %d\n", relative_index);
             return -1;
         } else {
             return pointer;
@@ -870,13 +872,6 @@ int write2(FILE2 handle, char *buffer, int size)
     for (i = 0; i < blocks_to_read; i++) {
         int real_block_id = get_block_id_from_inode(first_block_id+i, file->inode);
         if (real_block_id == -1) { // Bloco ainda não está alocado ao arquivo
-            // Seta indice do bloco para usado.
-            if (get_bitmap_state(real_block_id, BLOCK, superBloco) == 0) {
-                set_on_bitmap(real_block_id, 1, BLOCK, superBloco);
-            } else {
-                printf("ERRO: Tentando alocar bloco %d já sendo usado.\n", real_block_id);
-                return -1;
-            }
             if (allocate_block_on_inode(file->inode) == -1) {
                 printf("ERRO: Falha ao tentar alocar bloco a arquivo.\n");
                 return -1;
@@ -896,12 +891,16 @@ int write2(FILE2 handle, char *buffer, int size)
         memcpy(to_write[i]+(position*i), buffer, buffer_offset);
         position += buffer_offset;
     }
-
+    file->position = position;
     printf("to write: %s\n", to_write[0]);
     for (i = 0; i < blocks_to_read; i++) {
-        write_block(first_block_id+i, &to_write[i][0], superBloco);
+        int id_block = get_block_id_from_inode(first_block_id+i, file->inode);
+        write_block(id_block, &to_write[i][0], superBloco);
     }
-
+    char result[block_size];
+    read_block(get_block_id_from_inode(0, file->inode), result, superBloco);
+    i = 0;
+    printf("%s", result);
     return 0;
 }
 
