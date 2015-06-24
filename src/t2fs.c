@@ -27,10 +27,14 @@ typedef struct {
     OPEN_FILE *first;
 } OPEN_FILES;
 
-typedef struct current_path {
-    struct t2fs_inode *i_node;
-    struct current_path *previous;
-} CURRENT_PATH;
+typedef struct path_node {
+    struct t2fs_record record;
+    struct path_node *previous;
+} PATH_NODE;
+
+typedef struct path {
+    PATH_NODE *current;
+} PATH;
 
 struct t2fs_superbloco superBloco;
 
@@ -38,7 +42,7 @@ int current_handle = 0;       // Indica o valor do handle do prox. arquivo abert
 OPEN_FILES *open_files;       // Lista encadeada dos arquivos abertos
 OPEN_FILES *open_directories; // Lista encadeada dos diretorios abertos
 struct t2fs_inode current_dir;
-CURRENT_PATH *current_path = NULL;
+PATH current_path = {0};
 
 /* Prototipo de Funcoes */
 
@@ -49,15 +53,24 @@ void print_indices(int id_block);
 int get_block_id_from_inode(int relative_index, struct t2fs_inode *inode);
 
 // frees path and set it to '/'
-int chdir2_root(CURRENT_PATH **current_path);
+int chdir2_root(PATH *current_path);
 
 // advaces one directory in path to dirname, accepts . (do nothing) or .. (go back 1 directory);
-int chdir2_simple(CURRENT_PATH **current_path, char *dirname);
+int chdir2_simple(PATH *current_path, char *dirname);
 
 
 /***********************************/
 /* Definicao do corpo das Funcoes **/
 /***********************************/
+
+/**
+ * Usado para testes
+ */
+struct t2fs_superbloco get_superbloco(){
+    checkSuperBloco();
+    return superBloco;
+}
+
 int get_num_indices_in_block()
 {
     return superBloco.BlockSize / sizeof(DWORD);
@@ -336,9 +349,9 @@ int write_inode(int id_inode, struct t2fs_inode *inode)
     return 0;
 }
 
-struct t2fs_inode* read_i_node(int id_inode)
+struct t2fs_inode read_i_node(int id_inode)
 {
-    struct t2fs_inode *inode = malloc(sizeof(*inode));
+    struct t2fs_inode inode = {0};
 
     int block_relative = ((id_inode) * INODE_SIZE) / superBloco.BlockSize;
 //    printf("block relative: %d\n", block_relative);
@@ -352,16 +365,16 @@ struct t2fs_inode* read_i_node(int id_inode)
     //le
     int i, j;
     for (i = 0, j = 0; i < 40; i+=4, j++){
-        inode->dataPtr[j] = (BYTE) buffer[inode_relative + i] + ((BYTE) buffer[inode_relative + i+1] << 8) +
+        inode.dataPtr[j] = (BYTE) buffer[inode_relative + i] + ((BYTE) buffer[inode_relative + i+1] << 8) +
                            ((BYTE) buffer[inode_relative + i+2] << 16) + ((BYTE) buffer[inode_relative + i+3] << 24);
     }
     //indireção simples
     i = 40;
-    inode->singleIndPtr = (BYTE) buffer[inode_relative + i] + ((BYTE) buffer[inode_relative + i+1] << 8) +
+    inode.singleIndPtr = (BYTE) buffer[inode_relative + i] + ((BYTE) buffer[inode_relative + i+1] << 8) +
                          ((BYTE) buffer[inode_relative + i+2] << 16) + ((BYTE) buffer[inode_relative + i+3] << 24);
     //indireção dupla
     i = 44;
-    inode->doubleIndPtr = (BYTE) buffer[inode_relative + i] + ((BYTE) buffer[inode_relative + i+1] << 8) +
+    inode.doubleIndPtr = (BYTE) buffer[inode_relative + i] + ((BYTE) buffer[inode_relative + i+1] << 8) +
                          ((BYTE) buffer[inode_relative + i+2] << 16) + ((BYTE) buffer[inode_relative + i+3] << 24);
 
     return inode;
@@ -599,15 +612,13 @@ FILE2 create2(char *filename)
 int delete2(char *filename)
 {
     checkSuperBloco();
-    struct t2fs_inode *inode = read_i_node(0);
-    print_inode(*inode);
+    struct t2fs_inode inode = read_i_node(0);
+    print_inode(inode);
     // Escreve inode igual ao inode 0 no inode 1
-    write_inode(1, inode);
-    free(inode);
+    write_inode(1, &inode);
 
-    struct t2fs_inode *inode1 = read_i_node(1);
-    print_inode(*inode1);
-    free(inode1);
+    struct t2fs_inode inode1 = read_i_node(1);
+    print_inode(inode1);
 
     //printf("\n%d, %d\n", superBloco.InodeBlock, superBloco.FirstDataBlock);
     //print_inode(*read_i_node(0));
@@ -630,7 +641,8 @@ FILE2 open2(char *filename)
     find_record_in_inode(current_dir, filename, file_record);
 
     OPEN_FILE *open_file = malloc(sizeof(*open_file));
-    open_file->inode = read_i_node(file_record->i_node);
+    open_file->inode = malloc(sizeof(struct t2fs_inode));
+    *(open_file->inode) = read_i_node(file_record->i_node);
     open_file->position = 0;
     open_file->handle = current_handle;
     open_file->next = NULL;
@@ -984,34 +996,76 @@ int seek2(FILE2 handle, unsigned int offset)
 int mkdir2(char *pathname)
 {
     checkSuperBloco();
-    struct t2fs_inode *inode = read_i_node(1);
-    initialize_inode(inode);
-    int i;
-    for (i = 0; i < 10; i++) {
-        allocate_block_on_inode(inode);
-        //print_inode(*inode);
-    }
-    //print_indices(inode->singleIndPtr);
-    for (i = 0; i < get_num_indices_in_block(); i++) {
-        allocate_block_on_inode(inode);
-        //print_inode(*inode);
+
+    //acha inode
+    //char *before_filename = get_string_before_last_bar(filename);
+    //struct t2fs_inode creating_inode;
+    // if (*before_filename != 0){ //se nome não tem barras
+    //     find_inode_from_path(superBloco, filename, current_dir, &creating_inode);
+    // } else {
+    //     creating_inode = current_dir;
+    // }
+
+    //char *striped_filename = get_string_after_bar(filename);
+
+    //if (!is_name_consistent(striped_filename)) {
+    if (!is_name_consistent(pathname)) {
+        return -1;
     }
 
-    write_inode(1, inode);
+    struct t2fs_record *new_directory_record;
+    struct t2fs_inode *new_directory_inode;
 
-    print_indices(78);
-    for (i = 0; i < 10; i++) {
-        printf("%d = %d\n", i, get_block_id_from_inode(i, inode));
-    }
-    for (i = 10; i < 10+get_num_indices_in_block(); i++) {
-        printf("%d = %d\n", i, get_block_id_from_inode(i, inode));
-    }
-    //get_block_id_from_inode(i, inode);
-    //print_bitmap(BLOCK, superBloco);
-    //print_inode(*inode);
-    //print_indices(inode->singleIndPtr);
-    //allocate_block_on_inode(inode);
-    return 0;
+    int idx = get_free_bit_on_bitmap(INODE, superBloco);
+    //printf("Primeiro indice livre de inode e %d", idx);
+
+    // TODO: No momento só guarda no diretório corrente,
+    //       não permite passagem do caminho completo.
+
+    // Cria o record para o diretorio
+    new_directory_record = malloc(sizeof *new_directory_record);
+    new_directory_record->TypeVal        = TYPEVAL_DIRETORIO;
+    new_directory_record->i_node         = idx;
+    new_directory_record->blocksFileSize = 1;         // ocupa 1 inode quando criado
+    new_directory_record->bytesFileSize  = 0;        // TODO-: 31 bytes?? ou 0? --> tamanho do arquivo = tamanho bloco x blocs usados
+    //memcpy(new_directory_record->name, striped_filename, 31);
+    memcpy(new_directory_record->name, pathname, 31);
+
+    // Cria inode para arquivo
+    new_directory_inode = malloc(sizeof *new_directory_inode);
+    initialize_inode(new_directory_inode);
+    write_inode(idx, new_directory_inode);
+
+
+    //add_record_to_inode(creating_inode, *new_directory_record);
+    add_record_to_inode(current_dir, *new_directory_record);
+    free(new_directory_record);
+
+    // Cria o record para o self '.'
+    struct t2fs_record *self_record;
+    self_record = malloc(sizeof *self_record);
+    self_record->TypeVal        = TYPEVAL_DIRETORIO;
+    self_record->i_node         = idx;
+    self_record->blocksFileSize = 1;         // ocupa 1 inode quando criado
+    self_record->bytesFileSize  = RECORD_SIZE * 2;        // ocupa dois records
+    memcpy(self_record->name, ".\n", 2);
+    add_record_to_inode(*new_directory_inode, *self_record);
+    free(self_record);
+
+    // Cria o record para o pai '..'
+    struct t2fs_record *father_record;
+    int idx_pai = 0; //TODO pai nao eh sempre rais
+    father_record = malloc(sizeof *father_record);
+    father_record->TypeVal        = TYPEVAL_DIRETORIO;
+    father_record->i_node         = idx_pai;
+    father_record->blocksFileSize = -1;         // TODO tamanho de blocos do dir pai?
+    father_record->bytesFileSize  = -1;        //  TODO tamanho do dir pai? imagina atualizar tudo isso
+    memcpy(father_record->name, "..\n", 3);
+    add_record_to_inode(*new_directory_inode, *father_record);
+    free(father_record);
+
+    free(new_directory_inode);
+    return opendir2(pathname);
 }
 
 int rmdir2(char *pathname)
@@ -1030,7 +1084,8 @@ DIR2 opendir2(char *pathname)
     }
     if (pathname[0] == '/' && open_directories->first == NULL) { //diretório raíz e primeiro diretorio
         OPEN_FILE *open_file = malloc(sizeof *open_file);
-        open_file->inode    = read_i_node(0);
+        open_file->inode    = malloc(sizeof(struct t2fs_inode));
+        *(open_file->inode)    = read_i_node(0);
         open_file->position = 0;
         open_file->handle   = current_handle;
         open_file->next     = NULL;
@@ -1125,25 +1180,37 @@ int closedir2(DIR2 handle)
     return 0;
 }
 
+int free_path(PATH *path)
+{
+    return -1;
+}
+
+int copy_path(PATH *dest, const PATH *origin)
+{
+    return -1;
+}
+
 // frees path and set it to '/'
-int chdir2_root(CURRENT_PATH **current_path) {
-    CURRENT_PATH *dir;
-    while (*current_path != NULL) {
-        dir = *current_path;
-        *current_path = (*current_path)->previous;
-        free(dir->i_node);
+int chdir2_root(PATH *current_path) {
+    PATH_NODE *dir;
+    while (current_path->current != NULL) {
+        dir = current_path->current;
+        current_path->current = current_path->current->previous;
         free(dir);
     }
-    *current_path = malloc(sizeof(struct current_path));
-    (*current_path)->previous = NULL;
-    (*current_path)->i_node = read_i_node(0);
+    current_path->current = malloc(sizeof(PATH_NODE));
+    current_path->current->previous = NULL;
+    current_path->current->record.name[0] = '\0';
+    current_path->current->record.TypeVal = TYPEVAL_DIRETORIO;
+    current_path->current->record.i_node = 0;
     return 0;
 }
 
 // advaces one directory in path to dirname, accepts . (do nothing) or .. (go back 1 directory);
-int chdir2_simple(CURRENT_PATH **current_path, char *dirname) {
+int chdir2_simple(PATH *current_path, char *dirname) {
     struct t2fs_record dir_record;
-    CURRENT_PATH *dir;
+    PATH_NODE *dir;
+    struct t2fs_inode dir_inode;
 
     // . : stay (do nothing)
     if (strcmp(dirname, ".\0") == 0) {
@@ -1152,10 +1219,9 @@ int chdir2_simple(CURRENT_PATH **current_path, char *dirname) {
 
     // .. : go back one dir
     if (strcmp(dirname, "..\0") == 0) {
-        if ((*current_path)->previous != NULL) {
-            dir = *current_path;
-            *current_path = (*current_path)->previous;
-            free(dir->i_node);
+        if (current_path->current->previous != NULL) {
+            dir = current_path->current;
+            current_path->current = dir->previous;
             free(dir);
         }
         return 0;
@@ -1166,11 +1232,12 @@ int chdir2_simple(CURRENT_PATH **current_path, char *dirname) {
         return -1;
     }
 
-    if (find_record_in_inode(*((*current_path)->i_node), dirname, &dir_record) != -1) {
-        dir = malloc(sizeof(struct t2fs_inode));
-        memcpy(dir, &(dir_record.i_node), sizeof(struct t2fs_inode));
-        dir->previous = *current_path;
-        *current_path = dir;
+    dir_inode = read_i_node(current_path->current->record.i_node);
+    if (find_record_in_inode(dir_inode, dirname, &dir_record) != -1) {
+        dir = malloc(sizeof(PATH_NODE));
+        memcpy(&(dir->record), &dir_record, sizeof(struct t2fs_record));
+        dir->previous = current_path->current;
+        current_path->current = dir;
         return 0;
     }
     return -1;
@@ -1234,8 +1301,7 @@ void checkSuperBloco()
             ((BYTE) buffer_super_bloco[34] << 16) + ((BYTE) buffer_super_bloco[35] << 24);
 
         // TODO: migrar para current_path para permitir 'chdir("..");'
-
         chdir2_root(&current_path);
-        current_dir = *(current_path->i_node);
+        current_dir = read_i_node(current_path.current->record.i_node);
     }
 }

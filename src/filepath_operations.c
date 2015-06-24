@@ -25,7 +25,7 @@ int get_inode_in_records(char *striped_file_name, struct t2fs_record *records, s
     }
 
     if (found){
-        found_inode = read_i_node(records[record_index].i_node);
+        *found_inode = read_i_node(records[record_index].i_node);
         return 1;
     } else {
         return 0;
@@ -131,7 +131,7 @@ char **str_split(char* a_str, const char a_delim) {
 
 int find_inode_from_path(struct t2fs_superbloco superBloco, char *filename, struct t2fs_inode current_dir, struct t2fs_inode *found_inode)
 {
-    struct t2fs_inode *current_inode = &current_dir; // set starting position;
+    struct t2fs_inode current_inode = current_dir; // set starting position;
     struct t2fs_inode return_inode;
 
     char** tokens;
@@ -143,7 +143,7 @@ int find_inode_from_path(struct t2fs_superbloco superBloco, char *filename, stru
         filename+= sizeof(char);
 
         if (filename[1] == '\0'){
-            found_inode = current_inode;
+            *found_inode = current_inode;
             return 1;
         }
 
@@ -160,9 +160,9 @@ int find_inode_from_path(struct t2fs_superbloco superBloco, char *filename, stru
             char *dir = *(tokens + i);
 //            printf("striped: %s\n", dir);
 //            printf("%d\n",i);
-            if (find_directory_in_inode(superBloco, dir, *current_inode, &return_inode)) {
+            if (find_directory_in_inode(superBloco, dir, current_inode, &return_inode)) {
 //                printf("po%d\n",i);
-                current_inode = &return_inode;
+                current_inode = return_inode;
 //                printf("--current inode first block index: %u\n", current_inode.dataPtr[0]);
             } else {
 //                printf("not found%d\n",i);
@@ -181,7 +181,7 @@ int find_inode_from_path(struct t2fs_superbloco superBloco, char *filename, stru
 
 //    printf("achou diretorio");
 
-    found_inode = current_inode;
+    *found_inode = current_inode;
     return 1;
 }
 
