@@ -22,7 +22,7 @@ int main(int argc, char *argv[]) {
     file = open2("Arquivo1");
 
     if (file >= 0){
-
+        //TODO gravar indefinidamente até encher disco
         char buffer[] = "123456789123456789";
         if (write2(file, buffer, 18) < 0){
             printf("Erro ao escrever dados!\n");
@@ -32,7 +32,16 @@ int main(int argc, char *argv[]) {
         printf("Erro! Nao conseguiu abrir arquivo\n");
     }
 
-    print_bitmap(BLOCK, get_superbloco());
+    //Arquivo 1 deve ter sido criado previamente
+    close2(file);
+    char buffer[] = "5555";
+    if (write2(file, buffer, 4) >= 0){
+        printf("Erro! Escreveu mesmo depois de fechado!\n");
+    }
+    //TODO ao gravar arquivo grande, deve preencher vários blocos
+//    print_bitmap(BLOCK, get_superbloco());
+
+
 
     return 0;
 
