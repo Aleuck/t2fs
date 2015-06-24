@@ -52,6 +52,8 @@ OPEN_FILE* get_file_from_list(int handle, file_type type);
 void print_indices(int id_block);
 int get_block_id_from_inode(int relative_index, struct t2fs_inode *inode);
 
+int copy_path(PATH *dest, const PATH *origin);
+
 // frees path and set it to '/'
 int chdir2_root(PATH *current_path);
 
@@ -1050,6 +1052,22 @@ int mkdir2(char *pathname)
 {
     checkSuperBloco();
 
+    // path where the dir will be created
+    PATH dest_path;
+    char name[31];
+    memset(&dest_path, 0, sizeof(PATH));
+
+    // allow relative paths
+    copy_path(&dest_path, &current_path);
+
+    int bar_index = last_index_of('/', pathname);
+    if (bar_index != -1) {
+        strncpy(name, &pathname[bar_index+1], sizeof(name));
+        pathname[bar_index] = '\0';
+        chdir2_generic(&dest_path, pathname);
+    } else {
+        strncpy(name, pathname, sizeof(name));
+    }
     //acha inode
     //char *before_filename = get_string_before_last_bar(filename);
     //struct t2fs_inode creating_inode;
@@ -1062,7 +1080,7 @@ int mkdir2(char *pathname)
     //char *striped_filename = get_string_after_bar(filename);
 
     //if (!is_name_consistent(striped_filename)) {
-    if (!is_name_consistent(pathname)) {
+    if (!is_path_consistent(pathname)) {
         return -1;
     }
 
@@ -1082,7 +1100,7 @@ int mkdir2(char *pathname)
     new_directory_record->blocksFileSize = 1;         // ocupa 1 inode quando criado
     new_directory_record->bytesFileSize  = 0;        // TODO-: 31 bytes?? ou 0? --> tamanho do arquivo = tamanho bloco x blocs usados
     //memcpy(new_directory_record->name, striped_filename, 31);
-    memcpy(new_directory_record->name, pathname, 31);
+    memcpy(new_directory_record->name, &name, 31);
 
     // Cria inode para arquivo
     new_directory_inode = malloc(sizeof *new_directory_inode);
@@ -1091,6 +1109,8 @@ int mkdir2(char *pathname)
 
 
     //add_record_to_inode(creating_inode, *new_directory_record);
+    struct t2fs_inode current_dir;
+    current_dir = read_i_node(dest_path.current->record.i_node);
     add_record_to_inode(current_dir, *new_directory_record);
     free(new_directory_record);
 
