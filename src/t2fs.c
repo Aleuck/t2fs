@@ -1121,7 +1121,10 @@ int chdir2_simple(CURRENT_PATH **current_path, char *dirname) {
         memcpy(dir, &(dir_record.i_node), sizeof(struct t2fs_inode));
         dir->previous = *current_path;
         *current_path = dir;
+<<<<<<< HEAD
         return 0;
+=======
+>>>>>>> 69cd9a833c132d8b10f6a70c9043c901a64fedfe
     }
     return -1;
 }
