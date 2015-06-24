@@ -351,7 +351,7 @@ int write_inode(int id_inode, struct t2fs_inode *inode)
 
 struct t2fs_inode read_i_node(int id_inode)
 {
-    struct t2fs_inode inode = {0};
+    struct t2fs_inode inode;//={0};
 
     int block_relative = ((id_inode) * INODE_SIZE) / superBloco.BlockSize;
 //    printf("block relative: %d\n", block_relative);
@@ -933,31 +933,36 @@ int write2(FILE2 handle, char *buffer, int size)
 
         int off1 = block_size - position;
         int off2 = size - position;
+        printf("off1: %d, off2: %d\n", off1, off2);
         if (off1 < off2) {
             buffer_offset += off1;
         } else {
             buffer_offset += off2;
         }
-
-        memcpy(to_write[i]+(position*i), buffer, buffer_offset);
+        memcpy(to_write[i]+(position*i), buffer+(i*block_size), buffer_offset);
+        printf("buffer_offset: %u\n", buffer_offset);
         position += buffer_offset;
+        printf("position: %d\n", position);
     }
-    return 0;
+    printf("buffer: %s\n", buffer);
+
     file->position = position;
     printf("position: %d\n", file->position);
+
     char last_block[block_size];
     if (position/(blocks_to_read*block_size) < 1) {
         printf("\nPOSICAO PRA ESCRITA E RELATIVA\n");
     }
-    printf("blocks_to_read: %d\n", blocks_to_read);
+
     int r_pos = file->position - block_size*(blocks_to_read-1);
+    printf("blocks_to_read: %d\n", blocks_to_read);
     printf("\nr_pos: %d\n", r_pos);
     printf("block_size: %d\n", block_size);
+    printf("to write real: %s\n", to_write[blocks_to_read-1]);
     for (i = 0; i < r_pos; i++) {
         last_block[i] = to_write[blocks_to_read-1][i];
     }
     if (r_pos < block_size) {
-        return 0;
         last_block[r_pos] = '\0';
     }
 
@@ -971,11 +976,10 @@ int write2(FILE2 handle, char *buffer, int size)
     //printf("to write: %s\n", last_block);
     char result[block_size];
     read_block(get_block_id_from_inode(0, file->inode), result, superBloco);
-    i = 0;
-    while (result[i] != '\0') {
-        printf("%c", result[i]);
-        i++;
-    }
+
+    printf("%s", result);
+
+
     printf("\nEND OF FILE\n");
     return 0;
 }
