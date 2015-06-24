@@ -109,6 +109,11 @@ int find_record_in_index_array(DWORD *dataPtr, int dataPtrLength, char *record_n
 
 }
 
+// preenche a estrutura file_record com o record encontrado
+// retorna -1 se record_name não é encontrado
+// retorna indice abstrato do bloco, ex:
+//    2 se for estiver no terceiro index em dir_inode.dataPtr
+//    10 se for o primeiro indice no bloco de indireção simples
 int find_record_in_inode(struct t2fs_inode dir_inode, char *record_name, struct t2fs_record *file_record)
 {
     int indices_in_block = get_num_indices_in_block();
