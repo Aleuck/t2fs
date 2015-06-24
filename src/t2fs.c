@@ -300,7 +300,8 @@ long unsigned int number_of_sectors()
     return sectors;
 }
 
-void printSuperBloco() {
+void printSuperBloco()
+{
     checkSuperBloco();
 
     printf("Id: %4.4s\n", superBloco.Id);
@@ -531,7 +532,22 @@ int delete2(char *filename)
 FILE2 open2(char *filename)
 {
     checkSuperBloco();
-    return 0;
+    if ((open_files->size + open_directories->size) == MAX_OPEN_FILES) {
+        printf("ERRO: numero maximo de arquivos abertos (20)");
+        return -1;
+    }
+    if (filename[0] == '/' && open_directories->first == NULL) { //diretório raíz e primeiro diretorio
+        OPEN_FILE *open_file = malloc(sizeof *open_file);
+        open_file->inode    = read_i_node(0);
+        open_file->position = 0;
+        open_file->handle   = current_handle;
+        open_file->next     = NULL;
+        add_opened_file_to_list(open_file, DIR_TYPE);
+
+        current_handle++;
+        return current_handle-1;
+    }
+    return -1;
 }
 
 /**
@@ -730,7 +746,7 @@ int allocate_block_on_inode(struct t2fs_inode *inode)
     }
     // Se ja existe bloco de indices
     DWORD *indices = get_indices(inode->singleIndPtr);
-    print_indices(inode->singleIndPtr);
+    //print_indices(inode->singleIndPtr);
     for (i = 0; i < get_num_indices_in_block(); i++) {
         if (indices[i] == INVALID_POINTER) {
             new_id = get_free_bit_on_bitmap(BLOCK, superBloco);
@@ -744,12 +760,13 @@ int allocate_block_on_inode(struct t2fs_inode *inode)
     }
     // Nenhum indice livre em single ind.
     printf("\nAGORA TEM QUE FAZER O DUPLO ENDERECO\n");
-    if (inode->doubleIndPtr == INVALID_POINTER) {
-        new_id = get_free_bit_on_bitmap(BLOCK, superBloco);
-        inode->doubleIndPtr = new_id;
-        set_on_bitmap(inode->doubleIndPtr, 1, BLOCK, superBloco);
-        init_indices_block(inode->doubleIndPtr);
-    }
+    //TODO: TERMINAR DUPLA INDIRECAO
+    //if (inode->doubleIndPtr == INVALID_POINTER) {
+    //    new_id = get_free_bit_on_bitmap(BLOCK, superBloco);
+    //    inode->doubleIndPtr = new_id;
+    //    set_on_bitmap(inode->doubleIndPtr, 1, BLOCK, superBloco);
+    //    init_indices_block(inode->doubleIndPtr);
+    //}
     return 0;
 }
 
@@ -769,6 +786,7 @@ int write2(FILE2 handle, char *buffer, int size)
     unsigned int blocks_to_read = ((position + size) / block_size) + 1;
     char to_write[blocks_to_read][block_size];
 
+    int buffer_offset = 0;
     unsigned int i;
     for (i = 0; i < blocks_to_read; i++) {
         int real_block_id = get_block_id_from_inode(first_block_id+i, file->inode);
@@ -777,18 +795,33 @@ int write2(FILE2 handle, char *buffer, int size)
             if (get_bitmap_state(real_block_id, BLOCK, superBloco) == 0) {
                 set_on_bitmap(real_block_id, 1, BLOCK, superBloco);
             } else {
-                printf("ERRO: Tentando alocar bloco %d já sendo usado.", real_block_id);
+                printf("ERRO: Tentando alocar bloco %d já sendo usado.\n", real_block_id);
                 return -1;
             }
             if (allocate_block_on_inode(file->inode) == -1) {
-                printf("ERRO: Falha ao tentar alocar bloco a arquivo.");
+                printf("ERRO: Falha ao tentar alocar bloco a arquivo.\n");
                 return -1;
             }
             real_block_id = get_block_id_from_inode(first_block_id+i, file->inode);
         }
         read_block(real_block_id, &to_write[i][0], superBloco);
+
+        int off1 = block_size - position;
+        int off2 = size - position;
+        if (off1 < off2) {
+            buffer_offset += off1;
+        } else {
+            buffer_offset += off2;
+        }
+
+        memcpy(to_write[i]+(position*i), buffer, buffer_offset);
+        position += buffer_offset;
     }
 
+    printf("to write: %s\n", to_write[0]);
+    for (i = 0; i < blocks_to_read; i++) {
+        write_block(first_block_id+i, &to_write[i][0], superBloco);
+    }
 
     return 0;
 }
@@ -807,18 +840,28 @@ int mkdir2(char *pathname)
     int i;
     for (i = 0; i < 10; i++) {
         allocate_block_on_inode(inode);
-        print_inode(*inode);
+        //print_inode(*inode);
     }
     //print_indices(inode->singleIndPtr);
     for (i = 0; i < get_num_indices_in_block(); i++) {
         allocate_block_on_inode(inode);
-        print_inode(*inode);
+        //print_inode(*inode);
     }
 
+    write_inode(1, inode);
 
+    print_indices(78);
+    for (i = 0; i < 10; i++) {
+        printf("%d = %d\n", i, get_block_id_from_inode(i, inode));
+    }
+    for (i = 10; i < 10+get_num_indices_in_block(); i++) {
+        printf("%d = %d\n", i, get_block_id_from_inode(i, inode));
+    }
+    //get_block_id_from_inode(i, inode);
+    //print_bitmap(BLOCK, superBloco);
     //print_inode(*inode);
-    print_indices(inode->singleIndPtr);
-    allocate_block_on_inode(inode);
+    //print_indices(inode->singleIndPtr);
+    //allocate_block_on_inode(inode);
     return 0;
 }
 
@@ -860,7 +903,7 @@ OPEN_FILE* get_file_from_list(int handle, file_type type)
     OPEN_FILE *searcher;
     if (type == FILE_TYPE) {
         list = open_files;
-    }else {
+    } else {
         list = open_directories;
     }
 
