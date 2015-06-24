@@ -13,3 +13,4 @@ main.o
 teste
 t2fs_disk.dat
 bin/
+test_identify.o
