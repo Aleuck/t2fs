@@ -55,10 +55,10 @@ void print_bitmap(bitmap_type type, struct t2fs_superbloco superBloco)
 int set_on_bitmap(unsigned int id_bit, short int bit_state, bitmap_type type, struct t2fs_superbloco superBloco)
 {
     if (type == BLOCK && id_bit >= superBloco.NofBlocks) {
-        printf("Tentando setar o bloco %d que nao existe.", id_bit);
+        printf("Tentando setar o bloco %d que nao existe.\n", id_bit);
         return -1;
     } else if (type == INODE && id_bit >= superBloco.NofBlocks) {
-        printf("Tentando setar o inode %d que nao existe.", id_bit);
+        printf("Tentando setar o inode %d que nao existe.\n", id_bit);
         return -1;
     } else if (bit_state != 0 && bit_state != 1) {
         printf("Valor passado de bit invalido.\n");
@@ -93,7 +93,7 @@ int set_on_bitmap(unsigned int id_bit, short int bit_state, bitmap_type type, st
         new_section = block_buffer[section] + (1 << (7 - offset));
         break;
     default:
-        printf("ISSO NUNCA DEVE SER IMPRESSO");
+        printf("\nISSO NUNCA DEVE SER IMPRESSO\n");
         return -1;
     }
 
