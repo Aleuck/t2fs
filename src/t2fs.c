@@ -459,6 +459,7 @@ int is_path_consistent(char *strpath)
 {
     int i = 0;
     int namelength = 0;
+
     while (strpath[i] != '\0') {
         if (strpath[i] == '/') {
             i++;
@@ -515,12 +516,12 @@ int is_name_consistent(char *name)
         if (is_number(name[i]) || is_letter(name[i])) {
             i++;
         } else {
-            printf("ERRO: Nome passado contem um caractere invalido");
+            printf("ERRO: Nome passado contem um caractere invalido\n");
             return 0;
         }
     }
     if (i > 30) {
-        printf("ERRO: Nome passado e maior que 30 caracteres.");
+        printf("ERRO: Nome passado e maior que 30 caracteres.\n");
         return 0;
     }
 
@@ -688,7 +689,7 @@ FILE2 open2(char *filename)
 {
     checkSuperBloco();
     if ((open_files->size + open_directories->size) == MAX_OPEN_FILES) {
-        printf("ERRO: numero maximo de arquivos abertos (20)");
+        printf("ERRO: numero maximo de arquivos abertos (20)\n");
         return -1;
     }
     struct t2fs_record *file_record = malloc(sizeof(*file_record));
@@ -851,7 +852,7 @@ int get_block_id_from_inode(int relative_index, struct t2fs_inode *inode)
         printf("ERRO: inode nao contem bloco relativo de indice %d", relative_index);
         return -1;
     }
-    printf("JESUS CRISTO, AINDA NAO TA IMPLEMENTADO PRA ARQUIVOS TAO GRANDES");
+    printf("JESUS CRISTO, AINDA NAO TA IMPLEMENTADO PRA ARQUIVOS TAO GRANDES\n");
     //int id = relative_index - 10 - N_OF_INDICES;
     //DWORD *first_lvl_id = get_indices(inode->doubleIndPtr);
     return -1;
@@ -1070,7 +1071,6 @@ int mkdir2(char *pathname)
     // allow relative paths
     copy_path(&dest_path, &current_path);
 
-
     int bar_index = last_index_of('/', pathname);
 
 
@@ -1105,7 +1105,6 @@ int mkdir2(char *pathname)
     new_directory_inode = malloc(sizeof *new_directory_inode);
     initialize_inode(new_directory_inode);
     write_inode(idx, new_directory_inode);
-    free(new_directory_inode);
 
     // get inode where the dir is being created
     struct t2fs_inode current_dir;
@@ -1114,7 +1113,30 @@ int mkdir2(char *pathname)
     add_record_to_inode(current_dir, *new_directory_record);
     free(new_directory_record);
 
+    // Cria o record para o self '.'
+    struct t2fs_record *self_record;
+    self_record = malloc(sizeof *self_record);
+    self_record->TypeVal        = TYPEVAL_DIRETORIO;
+    self_record->i_node         = idx;
+    self_record->blocksFileSize = 1;         // ocupa 1 inode quando criado
+    self_record->bytesFileSize  = RECORD_SIZE * 2;        // ocupa dois records
+    memcpy(self_record->name, ".\n", 2);
+    add_record_to_inode(*new_directory_inode, *self_record);
+    free(self_record);
 
+    // Cria o record para o pai '..'
+    struct t2fs_record *father_record;
+    int idx_pai = 0; //TODO pai nao eh sempre rais
+    father_record = malloc(sizeof *father_record);
+    father_record->TypeVal        = TYPEVAL_DIRETORIO;
+    father_record->i_node         = idx_pai;
+    father_record->blocksFileSize = -1;         // TODO tamanho de blocos do dir pai?
+    father_record->bytesFileSize  = -1;        //  TODO tamanho do dir pai? imagina atualizar tudo isso
+    memcpy(father_record->name, "..\n", 3);
+    add_record_to_inode(*new_directory_inode, *father_record);
+    free(father_record);
+
+    free(new_directory_inode);
     return opendir2(pathname);
 }
 
@@ -1129,7 +1151,7 @@ DIR2 opendir2(char *pathname)
     checkSuperBloco();
 
     if ((open_files->size + open_directories->size) == MAX_OPEN_FILES) {
-        printf("ERRO: numero maximo de arquivos abertos (20)");
+        printf("ERRO: numero maximo de arquivos abertos (20)\n");
         return -1;
     }
     if (pathname[0] == '/' && open_directories->first == NULL) { //diretório raíz e primeiro diretorio
