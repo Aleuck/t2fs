@@ -57,6 +57,15 @@ int chdir2_simple(CURRENT_PATH **current_path, char *dirname);
 /***********************************/
 /* Definicao do corpo das Funcoes **/
 /***********************************/
+
+/**
+ * Usado para testes
+ */
+struct t2fs_superbloco get_superbloco(){
+    checkSuperBloco();
+    return superBloco;
+}
+
 int get_num_indices_in_block()
 {
     return superBloco.BlockSize / sizeof(DWORD);
