@@ -8,7 +8,7 @@ SRC_DIR=./src
 all: $(BIN_DIR)/main
 
 $(BIN_DIR)/main: $(LIB_DIR)/libt2fs.a
-	$(CC) -m32 -o $(BIN_DIR)/main $(SRC_DIR)/main.c -L$(LIB_DIR)/ -lt2fs -Wall
+	$(CC) -m32 -o $(BIN_DIR)/main ./main.c -L$(LIB_DIR)/ -lt2fs -Wall
 
 $(LIB_DIR)/libt2fs.a: $(LIB_DIR)/t2fs.o $(LIB_DIR)/bitmap_operations.o $(LIB_DIR)/block_io.o $(LIB_DIR)/filepath_operations.o
 	ar crs $(LIB_DIR)/libt2fs.a $(LIB_DIR)/*.o

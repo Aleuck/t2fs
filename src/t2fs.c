@@ -526,31 +526,20 @@ void initialize_inode(struct t2fs_inode *inode)
 
 int identify2(char *name, int size)
 {
+    checkSuperBloco();
+
     int i = 0;
     char ids[] = "Alexandre Leuck (...), Gianei Sebastiany (213502)"
-        " e Leonardo Hahn (207684)\n\0";
+        " e Leonardo Hahn (207684)\0";
 
-    checkSuperBloco();
-    printSuperBloco();
-
-    //TODO: Catch possible errors
-    while (ids[i] != '\0') {
-        if (i < size) {
-            name[i] = ids[i];
-        }
+    while (ids[i] != '\0' && i < size - 1) {
+        name[i] = ids[i];
         i++;
     }
-    if (i > size) {
-        printf("\n**Size of the buffer passed is smaller "
-               "than the identification string**\n\n");
+    if (size < strlen(ids)) {
+        return -1;
     }
-
-    printf("Checando bitmap Blocos\n");
-    for (i = 0; i < superBloco.NofBlocks; i++) {
-        printf("bloco %d = %d, ", i, get_bitmap_state(i, BLOCK, superBloco));
-    }
-
-    set_on_bitmap(0, 0, BLOCK, superBloco);
+    name[size - 1] = '\0';
 
     return 0;
 }

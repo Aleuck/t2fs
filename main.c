@@ -1,7 +1,5 @@
 #include <stdio.h>
-#include "../include/t2fs.h"
-#include "../include/apidisk.h"
-#include "../include/filepath_operations.h"
+#include "./include/t2fs.h"
 
 void ls(DIR2 dirHandle)
 {
