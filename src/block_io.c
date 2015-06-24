@@ -13,7 +13,7 @@ int get_sectors_per_block(struct t2fs_superbloco superBloco);
 int write_block(int id_block, char* buffer, struct t2fs_superbloco superBloco)
 {
     if (id_block >= superBloco.NofBlocks) {
-        printf("ERRO: Tentando escrever no bloco %d", id_block);
+        printf("ERRO: Tentando escrever no bloco %d\n", id_block);
         return -1;
     }
 
@@ -33,7 +33,7 @@ int write_block(int id_block, char* buffer, struct t2fs_superbloco superBloco)
 int read_block(int id_block, char* buffer, struct t2fs_superbloco superBloco)
 {
     if (id_block >= superBloco.NofBlocks) {
-        printf("ERRO: Tentando ler bloco %d", id_block);
+        printf("ERRO: Tentando ler bloco %d\n", id_block);
         return -1;
     }
 
