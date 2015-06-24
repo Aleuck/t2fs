@@ -20,7 +20,6 @@ int get_inode_in_records(char *striped_file_name, struct t2fs_record *records, s
             found = 1;
             break;
         }
-
         record_index++;
     }
 

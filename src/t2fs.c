@@ -17,7 +17,7 @@ typedef enum {FILE_TYPE, DIR_TYPE} file_type;
 
 typedef struct open_file {
     struct t2fs_inode *inode;
-    int position;
+    unsigned int position;
     int handle;
     struct open_file *next;
 } OPEN_FILE;
@@ -50,6 +50,7 @@ void checkSuperBloco();
 void print_record(struct t2fs_record record);
 OPEN_FILE* get_file_from_list(int handle, file_type type);
 void print_indices(int id_block);
+int get_block_id_from_inode(int relative_index, struct t2fs_inode *inode);
 
 // frees path and set it to '/'
 int chdir2_root(PATH *current_path);
@@ -91,8 +92,6 @@ void write_records_on_block(int id_block, struct t2fs_record *records)
     }
     write_block(id_block, buffer, superBloco);
 }
-
-
 
 // Procura por um record com nome igual a *recordname,
 // se encontrar, retorna o indice no bloco e preenche *record com os respectivos dados
@@ -352,7 +351,7 @@ int write_inode(int id_inode, struct t2fs_inode *inode)
 
 struct t2fs_inode read_i_node(int id_inode)
 {
-    struct t2fs_inode inode = {0};
+    struct t2fs_inode inode;//={0};
 
     int block_relative = ((id_inode) * INODE_SIZE) / superBloco.BlockSize;
 //    printf("block relative: %d\n", block_relative);
@@ -729,6 +728,34 @@ int close2(FILE2 handle)
 int read2(FILE2 handle, char *buffer, int size)
 {
     checkSuperBloco();
+
+    OPEN_FILE *file = get_file_from_list(handle, FILE_TYPE);
+    int position = file->position;
+    int block_size = superBloco.BlockSize;
+
+    int first_block = position / block_size;
+    unsigned int blocks_to_read = ((position + size) / block_size) + 1;
+    unsigned int i;
+    int buffer_size = blocks_to_read * block_size;
+    char to_read[buffer_size];
+    // Le todos os blocos que fazem parte de buffer
+    for (i = 0; i < blocks_to_read; i++) {
+        read_block(get_block_id_from_inode(first_block+i, file->inode), to_read+(block_size*i), superBloco);
+    }
+
+    int off1, off2, offset;
+    for (i = 0; i < blocks_to_read; i++) {
+        off1 = block_size*(i+1) - position;
+        off2 = size - position;
+        if (off1 < off2) {
+            offset = off1;
+        } else {
+            offset = off2;
+        }
+        memcpy(buffer+(block_size*i), to_read+position, offset);
+        position += offset;
+    }
+
     return 0;
 }
 
@@ -766,7 +793,7 @@ int get_block_id_from_inode(int relative_index, struct t2fs_inode *inode)
     if (relative_index < 10) {
         pointer = inode->dataPtr[relative_index];
         if (pointer == INVALID_POINTER) {
-            printf("ERRO: inode nao contem bloco relativo de indice %d\n", relative_index);
+            printf("WARNING: inode nao contem bloco relativo de indice %d\n", relative_index);
             return -1;
         } else {
             return pointer;
@@ -843,7 +870,6 @@ int write_indices(int id_block, DWORD *indices)
 int allocate_block_on_inode(struct t2fs_inode *inode)
 {
     int new_id;
-    printf("\nAlocando bloco ao inode\n");
 
     int i;
     for (i = 0; i < 10; i++) {
@@ -851,7 +877,7 @@ int allocate_block_on_inode(struct t2fs_inode *inode)
             new_id = get_free_bit_on_bitmap(BLOCK, superBloco);
             inode->dataPtr[i] = new_id;
             set_on_bitmap(new_id, 1, BLOCK, superBloco);
-            printf("\nBloco alocado no indice %d com o bloco %d\n", i, new_id);
+            printf("Bloco alocado no indice %d com o bloco %d\n", i, new_id);
             return 0;
         }
     }
@@ -911,8 +937,10 @@ int write2(FILE2 handle, char *buffer, int size)
     int position      = file->position;
 
     unsigned int first_block_id    = position / block_size;
-    unsigned int blocks_to_read = ((position + size) / block_size) + 1;
+    unsigned int blocks_to_read = (((position + size) - 1) / block_size) + 1;
     char to_write[blocks_to_read][block_size];
+    printf("block_size: %d\n", block_size);
+    printf("blocks_to_read: %d\n", blocks_to_read);
 
     int buffer_offset = 0;
     unsigned int i;
@@ -924,36 +952,73 @@ int write2(FILE2 handle, char *buffer, int size)
                 return -1;
             }
             real_block_id = get_block_id_from_inode(first_block_id+i, file->inode);
+            // inicia bloco com caracter '\0'
         }
         read_block(real_block_id, &to_write[i][0], superBloco);
 
         int off1 = block_size - position;
         int off2 = size - position;
+        printf("off1: %d, off2: %d\n", off1, off2);
         if (off1 < off2) {
             buffer_offset += off1;
         } else {
             buffer_offset += off2;
         }
-
-        memcpy(to_write[i]+(position*i), buffer, buffer_offset);
+        memcpy(to_write[i]+(position*i), buffer+(i*block_size), buffer_offset);
+        printf("buffer_offset: %u\n", buffer_offset);
         position += buffer_offset;
+        printf("position: %d\n", position);
     }
+    printf("buffer: %s\n", buffer);
+
     file->position = position;
-    printf("to write: %s\n", to_write[0]);
-    for (i = 0; i < blocks_to_read; i++) {
-        int id_block = get_block_id_from_inode(first_block_id+i, file->inode);
+    printf("position: %d\n", file->position);
+
+    char last_block[block_size];
+    if (position/(blocks_to_read*block_size) < 1) {
+        printf("\nPOSICAO PRA ESCRITA E RELATIVA\n");
+    }
+
+    int r_pos = file->position - block_size*(blocks_to_read-1);
+    printf("blocks_to_read: %d\n", blocks_to_read);
+    printf("\nr_pos: %d\n", r_pos);
+    printf("block_size: %d\n", block_size);
+    printf("to write real: %s\n", to_write[blocks_to_read-1]);
+    for (i = 0; i < r_pos; i++) {
+        last_block[i] = to_write[blocks_to_read-1][i];
+    }
+    if (r_pos < block_size) {
+        last_block[r_pos] = '\0';
+    }
+
+    int id_block;
+    for (i = 0; i < (blocks_to_read-1); i++) {
+        id_block = get_block_id_from_inode(first_block_id+i, file->inode);
         write_block(id_block, &to_write[i][0], superBloco);
     }
+    id_block = get_block_id_from_inode(first_block_id+i, file->inode);
+    write_block(id_block, last_block, superBloco);
+    //printf("to write: %s\n", last_block);
     char result[block_size];
     read_block(get_block_id_from_inode(0, file->inode), result, superBloco);
-    i = 0;
+
     printf("%s", result);
+
+
+    printf("\nEND OF FILE\n");
     return 0;
 }
 
 int seek2(FILE2 handle, unsigned int offset)
 {
     checkSuperBloco();
+
+    OPEN_FILE *file = get_file_from_list(handle, FILE_TYPE);
+    if (offset == (unsigned int) -1) {
+        file->position = (unsigned int) -1;         // posicao -1 indica final do arquivo.
+    } else {
+        file->position = offset;    //
+    }
     return 0;
 }
 

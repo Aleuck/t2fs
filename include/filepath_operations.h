@@ -14,7 +14,4 @@ char * get_string_after_bar(char* search);
 char * get_string_before_last_bar(char *search);
 
 
-
 #endif //CODE2_FILEPATH_OPERATIONS_H
-
-
