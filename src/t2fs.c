@@ -147,7 +147,7 @@ int find_record_in_inode(struct t2fs_inode dir_inode, char *record_name, struct 
 }
 
 
-int add_record_to_data_ptr_array(DWORD *dataPtr, int dataPtrLength, struct t2fs_record file_record)
+int add_record_to_index_array(DWORD *dataPtr, int dataPtrLength, struct t2fs_record file_record)
 {
     int records_in_block = get_records_in_block();
     struct t2fs_record records[records_in_block];
@@ -181,32 +181,31 @@ int add_record_to_data_ptr_array(DWORD *dataPtr, int dataPtrLength, struct t2fs_
     return -1;
 }
 
-int add_record_to_inode(struct t2fs_inode inode, struct t2fs_record file_record)
+int add_record_to_inode(struct t2fs_inode dir_inode, struct t2fs_record file_record)
 {
     int ptrs_in_block = get_num_indices_in_block();
     DWORD singleInd[ptrs_in_block];
     DWORD doubleInd[ptrs_in_block];
-    int ptr_index;
 
     // tenta inserir nos ponteiros diretos
-    if (add_record_to_data_ptr_array(inode.dataPtr, 10, file_record) == 0) {
+    if (add_record_to_index_array(dir_inode.dataPtr, 10, file_record) == 0) {
         return 0;
     }
     // tenta usar indireção simples
-    if (inode.singleIndPtr != 0x0FFFFFFFF) {
-        read_block(inode.singleIndPtr, (char*) singleInd, superBloco);
-        if (add_record_to_data_ptr_array(singleInd, ptrs_in_block, file_record) == 0) {
+    if (dir_inode.singleIndPtr != 0x0FFFFFFFF) {
+        read_block(dir_inode.singleIndPtr, (char*) singleInd, superBloco);
+        if (add_record_to_index_array(singleInd, ptrs_in_block, file_record) == 0) {
             return 0;
         }
     } else {
         // TODO: alocar bloco de indireção simples?
     }
     // tenta usar indireção dupla
-    if (inode.doubleIndPtr != 0x0FFFFFFFF) {
-        read_block(inode.doubleIndPtr, (char*) doubleInd, superBloco);
-        for (ptr_index = 0; ptr_index < ptrs_in_block; ptr_index++) {
-            read_block(doubleInd[ptr_index], (char*) singleInd, superBloco);
-            if (add_record_to_data_ptr_array(singleInd, ptrs_in_block, file_record) == 0) {
+    if (dir_inode.doubleIndPtr != 0x0FFFFFFFF) {
+        read_block(dir_inode.doubleIndPtr, (char*) doubleInd, superBloco);
+        for (int i = 0; i < ptrs_in_block; i++) {
+            read_block(doubleInd[i], (char*) singleInd, superBloco);
+            if (add_record_to_index_array(singleInd, ptrs_in_block, file_record) == 0) {
                 return 0;
             }
         }
