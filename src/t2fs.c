@@ -59,7 +59,7 @@ int chdir2_root(PATH *current_path);
 int chdir2_simple(PATH *current_path, char *dirname);
 
 // chdir any path (pathname is trunkated)
-int chdir2_generic (PATH *current_path, char *pathname)
+int chdir2_generic (PATH *current_path, char *pathname);
 
 /***********************************/
 /* Definicao do corpo das Funcoes **/
@@ -984,7 +984,8 @@ int write2(FILE2 handle, char *buffer, int size)
     i = 0;
     for (b = 0; b < blocks_to_read; b++) {
         for (j = 0; j < superBloco.BlockSize; j++) {
-            if (bytes_written == size) {
+            if (bytes_written == (size - 1)) {
+                to_write[b][j] = buffer[bytes_written];
                 break;
             }
             if ((j + (b*superBloco.BlockSize)) >= file->position) {

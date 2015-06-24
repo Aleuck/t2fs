@@ -28,7 +28,7 @@ int main(int argc, char *argv[])
         size++;
     }
     printf("BUFFER SIZE: %d\n", size);
-    write2(handleArq, buffer, 1086);
+    write2(handleArq, buffer, 1000);
 
 //    create2("MeuArquivo");
 //    create2("LeoArq\0");
