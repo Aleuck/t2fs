@@ -15,14 +15,18 @@ int main(int argc, char *argv[])
     int handleArq = create2("Teste");
     //printf("%d", handleArq);
     char buffer[] = "O dia em que eu sai de casa minha mae me disse, meu filho vem caaaaaa....... passou as maos em meus cabelos olhou emmeu olhos,"
-        "comecou a falar...... sou um garto pequeno com amor nos meus olhos, e fome de caminhar...";
+        "comecou a falar...... sou um garto pequeno com amor nos meus olhos, e fome de caminhar...\0";
     int size = 0;
     while (buffer[size] != '\0') {
         size++;
     }
-    printf("BUFFER SIZE: %d\n", size);
-    write2(handleArq, buffer, size);
+    printf("BUFFER SIZE: %d\n", size+1);
+    write2(handleArq, buffer, size+1);
+    char buffer_read[101];
 
+    seek2(handleArq, 0);
+    read2(handleArq, buffer_read, 100+1);
+    printf("Arquivo lido: \n%s\n", buffer_read+1);
 //    create2("MeuArquivo");
 //    create2("LeoArq\0");
 //    create2("HAHAHA");
