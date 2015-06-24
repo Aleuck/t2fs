@@ -27,12 +27,18 @@ typedef struct {
     OPEN_FILE *first;
 } OPEN_FILES;
 
+typedef struct current_path {
+    struct t2fs_inode *i_node;
+    struct current_path *previous;
+} CURRENT_PATH;
+
 struct t2fs_superbloco superBloco;
 
 int current_handle = 0;       // Indica o valor do handle do prox. arquivo aberto
 OPEN_FILES *open_files;       // Lista encadeada dos arquivos abertos
 OPEN_FILES *open_directories; // Lista encadeada dos diretorios abertos
 struct t2fs_inode current_dir;
+CURRENT_PATH *current_path = NULL;
 
 /* Prototipo de Funcoes */
 
@@ -40,6 +46,13 @@ void checkSuperBloco();
 void print_record(struct t2fs_record record);
 OPEN_FILE* get_file_from_list(int handle, file_type type);
 void print_indices(int id_block);
+
+// frees path and set it to '/'
+int chdir2_root(CURRENT_PATH **current_path);
+
+// advaces one directory in path to dirname, accepts . (do nothing) or .. (go back 1 directory);
+int chdir2_simple(CURRENT_PATH **current_path, char *dirname);
+
 
 /***********************************/
 /* Definicao do corpo das Funcoes **/
@@ -1062,9 +1075,61 @@ int closedir2(DIR2 handle)
     return 0;
 }
 
+// frees path and set it to '/'
+int chdir2_root(CURRENT_PATH **current_path) {
+    CURRENT_PATH *dir;
+    while (*current_path != NULL) {
+        dir = *current_path;
+        *current_path = (*current_path)->previous;
+        free(dir->i_node);
+        free(dir);
+    }
+    *current_path = malloc(sizeof(struct current_path));
+    (*current_path)->previous = NULL;
+    (*current_path)->i_node = read_i_node(0);
+    return 0;
+}
+
+// advaces one directory in path to dirname, accepts . (do nothing) or .. (go back 1 directory);
+int chdir2_simple(CURRENT_PATH **current_path, char *dirname) {
+    struct t2fs_record dir_record;
+    CURRENT_PATH *dir;
+
+    // . : stay (do nothing)
+    if (strcmp(dirname, ".\0") == 0) {
+        return 0;
+    }
+
+    // .. : go back one dir
+    if (strcmp(dirname, "..\0") == 0) {
+        if ((*current_path)->previous != NULL) {
+            dir = *current_path;
+            *current_path = (*current_path)->previous;
+            free(dir->i_node);
+            free(dir);
+        }
+        return 0;
+    }
+
+    // invalid dirname?
+    if (!is_name_consistent(dirname)) {
+        return -1;
+    }
+
+    if (find_record_in_inode(*((*current_path)->i_node), dirname, &dir_record) != -1) {
+        dir = malloc(sizeof(struct t2fs_inode));
+        memcpy(dir, &(dir_record.i_node), sizeof(struct t2fs_inode));
+        dir->previous = *current_path;
+        *current_path = dir;
+        return 0;
+    }
+    return -1;
+}
+
 int chdir2(char *pathname)
 {
     checkSuperBloco();
+
     return find_inode_from_path(superBloco, pathname, current_dir, &current_dir);
 }
 
@@ -1118,6 +1183,9 @@ void checkSuperBloco()
         superBloco.FirstDataBlock = (BYTE) buffer_super_bloco[32] + ((BYTE) buffer_super_bloco[33] << 8) +
             ((BYTE) buffer_super_bloco[34] << 16) + ((BYTE) buffer_super_bloco[35] << 24);
 
-        current_dir = *read_i_node(0); //define diretório raíz como diretório atual
+        // TODO: migrar para current_path para permitir 'chdir("..");'
+
+        chdir2_root(&current_path);
+        current_dir = *(current_path->i_node);
     }
 }
