@@ -931,8 +931,8 @@ int write2(FILE2 handle, char *buffer, int size)
         }
         read_block(real_block_id, &to_write[i][0], superBloco);
 
-        int off1 = block_size - position;
-        int off2 = size - position;
+        int off1 = block_size - file->position;
+        int off2 = size - file->position;
         printf("off1: %d, off2: %d\n", off1, off2);
         if (off1 < off2) {
             buffer_offset += off1;
@@ -941,12 +941,12 @@ int write2(FILE2 handle, char *buffer, int size)
         }
         memcpy(to_write[i]+(position*i), buffer+(i*block_size), buffer_offset);
         printf("buffer_offset: %u\n", buffer_offset);
-        position += buffer_offset;
+        file->position += buffer_offset;
         printf("position: %d\n", position);
     }
+
     printf("buffer: %s\n", buffer);
 
-    file->position = position;
     printf("position: %d\n", file->position);
 
     char last_block[block_size];
