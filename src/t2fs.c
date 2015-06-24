@@ -39,13 +39,12 @@ struct t2fs_inode current_dir;
 void checkSuperBloco();
 void print_record(struct t2fs_record record);
 OPEN_FILE* get_file_from_list(int handle, file_type type);
-int get_ptrs_in_block();
 void print_indices(int id_block);
 
 /***********************************/
 /* Definicao do corpo das Funcoes **/
 /***********************************/
-int get_num_indices()
+int get_num_indices_in_block()
 {
     return superBloco.BlockSize / sizeof(DWORD);
 }
@@ -104,7 +103,7 @@ int add_record_to_data_ptr_array(DWORD *dataPtr, int dataPtrLength, struct t2fs_
 int add_record_to_inode(struct t2fs_inode inode, struct t2fs_record file_record)
 {
     // TODO: Por enquanto pega somente o primeiro inode.
-    int ptrs_in_block = get_ptrs_in_block();
+    int ptrs_in_block = get_num_indices_in_block();
     DWORD singleInd[ptrs_in_block];
     DWORD doubleInd[ptrs_in_block];
     int ptr_index;
@@ -165,11 +164,6 @@ void print_record(struct t2fs_record record)
 int get_records_in_block()
 {
     return superBloco.BlockSize / RECORD_SIZE;
-}
-
-int get_ptrs_in_block()
-{
-    return superBloco.BlockSize / sizeof(DWORD);
 }
 
 /**
@@ -601,13 +595,13 @@ int read2(FILE2 handle, char *buffer, int size)
  */
 DWORD* get_indices(int id_block)
 {
-    DWORD *indices = malloc(get_num_indices() * sizeof(*indices));
+    DWORD *indices = malloc(get_num_indices_in_block() * sizeof(*indices));
 
     char buffer[superBloco.BlockSize];
     read_block(id_block, buffer, superBloco);
 
     unsigned int i;
-    for (i = 0; i < get_num_indices(); i++) {
+    for (i = 0; i < get_num_indices_in_block(); i++) {
         //indices[i] = (DWORD) buffer[i * sizeof(DWORD)];
         memcpy(indices+i, buffer+(i*4), 4);
     }
@@ -639,7 +633,7 @@ int get_block_id_from_inode(int relative_index, struct t2fs_inode *inode)
         return -1;
     }
     int id_singleInd_block = relative_index - 10;
-    if (id_singleInd_block >= 0 && id_singleInd_block < get_num_indices()) { // Indice pertence aos blocos indiretos
+    if (id_singleInd_block >= 0 && id_singleInd_block < get_num_indices_in_block()) { // Indice pertence aos blocos indiretos
         DWORD *indices = get_indices(inode->singleIndPtr);
         pointer = indices[id_singleInd_block];
 
@@ -664,7 +658,7 @@ int get_block_id_from_inode(int relative_index, struct t2fs_inode *inode)
 
 /**
  *  Dado um índice de um bloco. Seta as entradas de todos os indices
- *  para 0x0FFFFFFFF. Sendo que o numero de indices e dado por (get_num_indices())
+ *  para 0x0FFFFFFFF. Sendo que o numero de indices e dado por (get_num_indices_in_block())
  */
 void init_indices_block(int id_block)
 {
@@ -672,7 +666,7 @@ void init_indices_block(int id_block)
     DWORD invalid = 0x0FFFFFFFF;
 
     int i;
-    for (i = 0; i < get_num_indices(); i++) {
+    for (i = 0; i < get_num_indices_in_block(); i++) {
         memcpy(buffer+(i*sizeof(DWORD)), (char*)&invalid, sizeof(DWORD));
     }
 
@@ -684,7 +678,7 @@ void print_indices(int id_block)
     DWORD *indices = get_indices(id_block);
     int i;
     printf("\n");
-    for (i = 0; i < get_num_indices(); i++) {
+    for (i = 0; i < get_num_indices_in_block(); i++) {
         printf("id %d = %d\n", i, indices[i]);
     }
     free(indices);
@@ -694,7 +688,7 @@ int write_indices(int id_block, DWORD *indices)
 {
     char buffer[superBloco.BlockSize];
     int i;
-    for (i = 0; i < get_num_indices(); i++) {
+    for (i = 0; i < get_num_indices_in_block(); i++) {
         memcpy(buffer+(i*sizeof(DWORD)), indices+i, sizeof(DWORD));
     }
 
@@ -737,7 +731,7 @@ int allocate_block_on_inode(struct t2fs_inode *inode)
     // Se ja existe bloco de indices
     DWORD *indices = get_indices(inode->singleIndPtr);
     print_indices(inode->singleIndPtr);
-    for (i = 0; i < get_num_indices(); i++) {
+    for (i = 0; i < get_num_indices_in_block(); i++) {
         if (indices[i] == INVALID_POINTER) {
             new_id = get_free_bit_on_bitmap(BLOCK, superBloco);
             indices[i] = new_id;
@@ -816,7 +810,7 @@ int mkdir2(char *pathname)
         print_inode(*inode);
     }
     //print_indices(inode->singleIndPtr);
-    for (i = 0; i < get_num_indices(); i++) {
+    for (i = 0; i < get_num_indices_in_block(); i++) {
         allocate_block_on_inode(inode);
         print_inode(*inode);
     }
