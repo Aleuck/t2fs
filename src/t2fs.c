@@ -459,7 +459,8 @@ int is_path_consistent(char *strpath)
             i++;
             namelength = 0;
         } else {
-            if (i >= 30) {
+            // tamanho do nome
+            if (namelength >= 30) {
                 printf("ERRO: Caminho invalido, nome com mais de 30 caracteres.\n");
                 return 0;
             }
@@ -467,6 +468,26 @@ int is_path_consistent(char *strpath)
                 i++;
                 namelength++;
             } else {
+                // permitir /dir/./ ou /dir/../
+                if (strpath[i] == '.') {
+                    // '.' apenas unico caractere do nome, 1 ou 2 vezes:
+                    if (namelength == 0 || namelength == 1) {
+                        if (strpath[i - namelength] == '.') {
+                            // se seguido de /
+                            if (strpath[i - namelength + 1] == '/') {
+                                i++;
+                                namelength++;
+                                continue;
+                            }
+                            if (strpath[i - namelength + 1] == '.' &&
+                                strpath[i - namelength + 2] == '/'){
+                                i++;
+                                namelength++;
+                                continue;
+                            }
+                        }
+                    }
+                }
                 printf("ERRO: Caminho invalido, nome contem caractere invalido.\n");
                 return 0;
             }
