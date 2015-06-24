@@ -40,6 +40,7 @@ void checkSuperBloco();
 void print_record(struct t2fs_record record);
 OPEN_FILE* get_file_from_list(int handle, file_type type);
 int get_ptrs_in_block();
+void print_indices(int id_block);
 
 /***********************************/
 /* Definicao do corpo das Funcoes **/
@@ -209,12 +210,15 @@ void print_inode(struct t2fs_inode inode)
 
     printf("Ponteiros diretos:\n");
     for (i = 0; i < 10; i++){
-        printf("%08xh; ", inode.dataPtr[i]);
+        //printf("%08xh; ", inode.dataPtr[i]);
+        printf("%d; ", inode.dataPtr[i]);
     }
     printf("\n");
 
-    printf("Indirecao simples: 0x%08x\n", inode.singleIndPtr);
-    printf("Indirecao dupla: 0x%08x\n", inode.doubleIndPtr);
+    //printf("Indirecao simples: 0x%08x\n", inode.singleIndPtr);
+    printf("Indirecao simples: %d\n", inode.singleIndPtr);
+    //printf("Indirecao dupla: 0x%08x\n", inode.doubleIndPtr);
+    printf("Indirecao dupla: %d\n", inode.doubleIndPtr);
 
 }
 
@@ -592,7 +596,8 @@ DWORD* get_indices(int id_block)
 
     unsigned int i;
     for (i = 0; i < get_num_indices(); i++) {
-        indices[i] = (DWORD) buffer[i * sizeof(DWORD)];
+        //indices[i] = (DWORD) buffer[i * sizeof(DWORD)];
+        memcpy(indices+i, buffer+(i*4), 4);
     }
 
     return indices;
@@ -646,8 +651,100 @@ int get_block_id_from_inode(int relative_index, struct t2fs_inode *inode)
 }
 
 /**
+ *  Dado um índice de um bloco. Seta as entradas de todos os indices
+ *  para 0x0FFFFFFFF. Sendo que o numero de indices e dado por (get_num_indices())
+ */
+void init_indices_block(int id_block)
+{
+    char buffer[superBloco.BlockSize];
+    DWORD invalid = 0x0FFFFFFFF;
+
+    int i;
+    for (i = 0; i < get_num_indices(); i++) {
+        memcpy(buffer+(i*sizeof(DWORD)), (char*)&invalid, sizeof(DWORD));
+    }
+
+    write_block(id_block, buffer, superBloco);
+}
+
+void print_indices(int id_block)
+{
+    DWORD *indices = get_indices(id_block);
+    int i;
+    printf("\n");
+    for (i = 0; i < get_num_indices(); i++) {
+        printf("id %d = %d\n", i, indices[i]);
+    }
+    free(indices);
+}
+
+int write_indices(int id_block, DWORD *indices)
+{
+    char buffer[superBloco.BlockSize];
+    int i;
+    for (i = 0; i < get_num_indices(); i++) {
+        memcpy(buffer+(i*sizeof(DWORD)), indices+i, sizeof(DWORD));
+    }
+
+    write_block(id_block, buffer, superBloco);
+    return 0;
+}
+
+int allocate_block_on_inode(struct t2fs_inode *inode)
+{
+    int new_id;
+    printf("\nAlocando bloco ao inode\n");
+
+    int i;
+    for (i = 0; i < 10; i++) {
+        if (inode->dataPtr[i] == INVALID_POINTER) {
+            new_id = get_free_bit_on_bitmap(BLOCK, superBloco);
+            inode->dataPtr[i] = new_id;
+            set_on_bitmap(new_id, 1, BLOCK, superBloco);
+            printf("\nBloco alocado no indice %d com o bloco %d\n", i, new_id);
+            return 0;
+        }
+    }
+    if (inode->singleIndPtr == INVALID_POINTER) { // Aloca bloco de indices
+        printf("Alocando bloco de indices\n");
+
+        new_id = get_free_bit_on_bitmap(BLOCK, superBloco);
+        inode->singleIndPtr = new_id;
+
+        init_indices_block(inode->singleIndPtr);
+        set_on_bitmap(inode->singleIndPtr, 1, BLOCK, superBloco);
+
+        DWORD *indices = get_indices(inode->singleIndPtr);
+        indices[0] = get_free_bit_on_bitmap(BLOCK, superBloco);
+        set_on_bitmap(indices[0], 1, BLOCK, superBloco);
+
+        write_indices(inode->singleIndPtr, indices);
+        free(indices);
+        return 0;
+    }
+    // Se ja existe bloco de indices
+    DWORD *indices = get_indices(inode->singleIndPtr);
+    print_indices(inode->singleIndPtr);
+    for (i = 0; i < get_num_indices(); i++) {
+        if (indices[i] == INVALID_POINTER) {
+            new_id = get_free_bit_on_bitmap(BLOCK, superBloco);
+            indices[i] = new_id;
+
+            set_on_bitmap(new_id, 1, BLOCK, superBloco);
+            write_indices(inode->singleIndPtr, indices);
+            free(indices);
+            return 0;
+        }
+    }
+    // Nenhum indice livre em single ind.
+    printf("\nAGORA TEM QUE FAZER O DUPLO ENDERECO\n");
+
+    return 0;
+}
+
+/**
  *  Funcao que dado o handle do arquivo, escreve no mesmo o conteudo
- *  de buffer
+ *  do buffer.
  */
 int write2(FILE2 handle, char *buffer, int size)
 {
@@ -656,23 +753,31 @@ int write2(FILE2 handle, char *buffer, int size)
     int block_size     = superBloco.BlockSize;
     OPEN_FILE *file   = get_file_from_list(handle, FILE_TYPE);
     int position      = file->position;
-    unsigned int i;
 
     unsigned int first_block_id    = position / block_size;
     unsigned int blocks_to_read = ((position + size) / block_size) + 1;
-    unsigned int block_id;
     char to_write[blocks_to_read][block_size];
 
-    if (first_block_id < 10) {
-        block_id = file->inode->dataPtr[first_block_id];
-    } else {
-        printf("ARQUIVO E BEM GRANDE!");
-        return -1;
+    unsigned int i;
+    for (i = 0; i < blocks_to_read; i++) {
+        int real_block_id = get_block_id_from_inode(first_block_id+i, file->inode);
+        if (real_block_id == -1) { // Bloco ainda não está alocado ao arquivo
+            // Seta indice do bloco para usado.
+            if (get_bitmap_state(real_block_id, BLOCK, superBloco) == 0) {
+                set_on_bitmap(real_block_id, 1, BLOCK, superBloco);
+            } else {
+                printf("ERRO: Tentando alocar bloco %d já sendo usado.", real_block_id);
+                return -1;
+            }
+            if (allocate_block_on_inode(file->inode) == -1) {
+                printf("ERRO: Falha ao tentar alocar bloco a arquivo.");
+                return -1;
+            }
+            real_block_id = get_block_id_from_inode(first_block_id+i, file->inode);
+        }
+        read_block(real_block_id, &to_write[i][0], superBloco);
     }
 
-    for (i = 0; i < blocks_to_read; i++) {
-        read_block(block_id + i, to_write[i], superBloco);
-    }
 
     return 0;
 }
@@ -686,6 +791,23 @@ int seek2(FILE2 handle, unsigned int offset)
 int mkdir2(char *pathname)
 {
     checkSuperBloco();
+    struct t2fs_inode *inode = read_i_node(1);
+    initialize_inode(inode);
+    int i;
+    for (i = 0; i < 10; i++) {
+        allocate_block_on_inode(inode);
+        print_inode(*inode);
+    }
+    //print_indices(inode->singleIndPtr);
+    for (i = 0; i < get_num_indices(); i++) {
+        allocate_block_on_inode(inode);
+        print_inode(*inode);
+    }
+
+
+    //print_inode(*inode);
+    print_indices(inode->singleIndPtr);
+    allocate_block_on_inode(inode);
     return 0;
 }
 

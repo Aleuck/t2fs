@@ -13,13 +13,14 @@ void ls(DIR2 dirHandle)
 
 int main(int argc, char *argv[])
 {
-    create2("MeuArquivo");
-    create2("LeoArq\0");
-    create2("HAHAHA");
+    mkdir2("ASOIDJ");
+    //create2("MeuArquivo");
+    //create2("LeoArq\0");
+    //create2("HAHAHA");
 
-    printf("\n\n");
-    DIR2 handle = opendir2("/");
-    ls(handle);
+    //printf("\n\n");
+    //DIR2 handle = opendir2("/");
+    //ls(handle);
 //    // Qual a diferenca entra fechar um arquivo ou um diretorio??
 //    close2(0);
 
