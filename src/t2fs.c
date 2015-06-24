@@ -699,13 +699,24 @@ int read2(FILE2 handle, char *buffer, int size)
     int first_block = position / block_size;
     unsigned int blocks_to_read = ((position + size) / block_size) + 1;
     unsigned int i;
-    char to_read[blocks_to_read][block_size];
+    int buffer_size = blocks_to_read * block_size;
+    char to_read[buffer_size];
     // Le todos os blocos que fazem parte de buffer
     for (i = 0; i < blocks_to_read; i++) {
-        read_block(get_block_id_from_inode(first_block+i, file->inode), &to_read[i][0], superBloco);
+        read_block(get_block_id_from_inode(first_block+i, file->inode), to_read+(block_size*i), superBloco);
     }
+
+    int off1, off2, offset;
     for (i = 0; i < blocks_to_read; i++) {
-        memcpy(buffer+(i*size), &to_read[i][0], block_size);
+        off1 = block_size*(i+1) - position;
+        off2 = size - position;
+        if (off1 < off2) {
+            offset = off1;
+        } else {
+            offset = off2;
+        }
+        memcpy(buffer+(block_size*i), to_read+position, offset);
+        position += offset;
     }
 
     return 0;
@@ -745,7 +756,7 @@ int get_block_id_from_inode(int relative_index, struct t2fs_inode *inode)
     if (relative_index < 10) {
         pointer = inode->dataPtr[relative_index];
         if (pointer == INVALID_POINTER) {
-            printf("ERRO: inode nao contem bloco relativo de indice %d\n", relative_index);
+            printf("WARNING: inode nao contem bloco relativo de indice %d\n", relative_index);
             return -1;
         } else {
             return pointer;
@@ -822,7 +833,6 @@ int write_indices(int id_block, DWORD *indices)
 int allocate_block_on_inode(struct t2fs_inode *inode)
 {
     int new_id;
-    printf("\nAlocando bloco ao inode\n");
 
     int i;
     for (i = 0; i < 10; i++) {
@@ -830,7 +840,7 @@ int allocate_block_on_inode(struct t2fs_inode *inode)
             new_id = get_free_bit_on_bitmap(BLOCK, superBloco);
             inode->dataPtr[i] = new_id;
             set_on_bitmap(new_id, 1, BLOCK, superBloco);
-            printf("\nBloco alocado no indice %d com o bloco %d\n", i, new_id);
+            printf("Bloco alocado no indice %d com o bloco %d\n", i, new_id);
             return 0;
         }
     }
@@ -890,8 +900,10 @@ int write2(FILE2 handle, char *buffer, int size)
     int position      = file->position;
 
     unsigned int first_block_id    = position / block_size;
-    unsigned int blocks_to_read = ((position + size) / block_size) + 1;
+    unsigned int blocks_to_read = (((position + size) - 1) / block_size) + 1;
     char to_write[blocks_to_read][block_size];
+    printf("block_size: %d\n", block_size);
+    printf("blocks_to_read: %d\n", blocks_to_read);
 
     int buffer_offset = 0;
     unsigned int i;
@@ -903,6 +915,7 @@ int write2(FILE2 handle, char *buffer, int size)
                 return -1;
             }
             real_block_id = get_block_id_from_inode(first_block_id+i, file->inode);
+            // inicia bloco com caracter '\0'
         }
         read_block(real_block_id, &to_write[i][0], superBloco);
 
@@ -917,16 +930,41 @@ int write2(FILE2 handle, char *buffer, int size)
         memcpy(to_write[i]+(position*i), buffer, buffer_offset);
         position += buffer_offset;
     }
+    return 0;
     file->position = position;
-    printf("to write: %s\n", to_write[0]);
-    for (i = 0; i < blocks_to_read; i++) {
-        int id_block = get_block_id_from_inode(first_block_id+i, file->inode);
+    printf("position: %d\n", file->position);
+    char last_block[block_size];
+    if (position/(blocks_to_read*block_size) < 1) {
+        printf("\nPOSICAO PRA ESCRITA E RELATIVA\n");
+    }
+    printf("blocks_to_read: %d\n", blocks_to_read);
+    int r_pos = file->position - block_size*(blocks_to_read-1);
+    printf("\nr_pos: %d\n", r_pos);
+    printf("block_size: %d\n", block_size);
+    for (i = 0; i < r_pos; i++) {
+        last_block[i] = to_write[blocks_to_read-1][i];
+    }
+    if (r_pos < block_size) {
+        return 0;
+        last_block[r_pos] = '\0';
+    }
+
+    int id_block;
+    for (i = 0; i < (blocks_to_read-1); i++) {
+        id_block = get_block_id_from_inode(first_block_id+i, file->inode);
         write_block(id_block, &to_write[i][0], superBloco);
     }
+    id_block = get_block_id_from_inode(first_block_id+i, file->inode);
+    write_block(id_block, last_block, superBloco);
+    //printf("to write: %s\n", last_block);
     char result[block_size];
     read_block(get_block_id_from_inode(0, file->inode), result, superBloco);
     i = 0;
-    printf("%s", result);
+    while (result[i] != '\0') {
+        printf("%c", result[i]);
+        i++;
+    }
+    printf("\nEND OF FILE\n");
     return 0;
 }
 
