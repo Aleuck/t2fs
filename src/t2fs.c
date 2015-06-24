@@ -58,6 +58,8 @@ int chdir2_root(PATH *current_path);
 // advaces one directory in path to dirname, accepts . (do nothing) or .. (go back 1 directory);
 int chdir2_simple(PATH *current_path, char *dirname);
 
+// chdir any path (pathname is trunkated)
+int chdir2_generic (PATH *current_path, char *pathname)
 
 /***********************************/
 /* Definicao do corpo das Funcoes **/
