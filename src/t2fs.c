@@ -58,6 +58,8 @@ int chdir2_root(PATH *current_path);
 // advaces one directory in path to dirname, accepts . (do nothing) or .. (go back 1 directory);
 int chdir2_simple(PATH *current_path, char *dirname);
 
+// chdir any path (pathname is trunkated)
+int chdir2_generic (PATH *current_path, char *pathname)
 
 /***********************************/
 /* Definicao do corpo das Funcoes **/
@@ -459,7 +461,8 @@ int is_path_consistent(char *strpath)
             i++;
             namelength = 0;
         } else {
-            if (i >= 30) {
+            // tamanho do nome
+            if (namelength >= 30) {
                 printf("ERRO: Caminho invalido, nome com mais de 30 caracteres.\n");
                 return 0;
             }
@@ -467,6 +470,29 @@ int is_path_consistent(char *strpath)
                 i++;
                 namelength++;
             } else {
+                // permitir /dir/./ ou /dir/../
+                if (strpath[i] == '.') {
+                    // '.' apenas unico caractere do nome, 1 ou 2 vezes:
+                    if (namelength == 0 || namelength == 1) {
+                        if (strpath[i - namelength] == '.') {
+                            // se seguido de /
+                            if (strpath[i - namelength + 1] == '/' ||
+                                strpath[i - namelength + 1] == '\0') {
+                                i++;
+                                namelength++;
+                                continue;
+                            }
+                            if (strpath[i - namelength + 1] == '.') {
+                                if (strpath[i - namelength + 2] == '/' ||
+                                    strpath[i - namelength + 2] == '\0') {
+                                    i++;
+                                    namelength++;
+                                    continue;
+                                }
+                            }
+                        }
+                    }
+                }
                 printf("ERRO: Caminho invalido, nome contem caractere invalido.\n");
                 return 0;
             }
@@ -1243,7 +1269,8 @@ int copy_path(PATH *dest, const PATH *origin)
 }
 
 // frees path and set it to '/'
-int chdir2_root(PATH *current_path) {
+int chdir2_root(PATH *current_path)
+{
 
     free_path(current_path);
 
@@ -1256,16 +1283,14 @@ int chdir2_root(PATH *current_path) {
 }
 
 // advaces one directory in path to dirname, accepts . (do nothing) or .. (go back 1 directory);
-int chdir2_simple(PATH *current_path, char *dirname) {
-    struct t2fs_record dir_record;
-    PATH_NODE *dir;
-    struct t2fs_inode dir_inode;
-
+int chdir2_simple(PATH *current_path, char *dirname)
+{
     // . : stay (do nothing)
     if (strcmp(dirname, ".\0") == 0) {
         return 0;
     }
 
+    PATH_NODE *dir = NULL;
     // .. : go back one dir
     if (strcmp(dirname, "..\0") == 0) {
         if (current_path->current->previous != NULL) {
@@ -1281,22 +1306,45 @@ int chdir2_simple(PATH *current_path, char *dirname) {
         return -1;
     }
 
+    struct t2fs_inode dir_inode;
+    struct t2fs_record dir_record;
+
     dir_inode = read_i_node(current_path->current->record.i_node);
     if (find_record_in_inode(dir_inode, dirname, &dir_record) != -1) {
+        if (dir->record.TypeVal != TYPEVAL_DIRETORIO) {
+            printf("ERRO: '%s' nao e um diretorio.\n", dir->record.name);
+            return -1;
+        }
         dir = malloc(sizeof(PATH_NODE));
         memcpy(&(dir->record), &dir_record, sizeof(struct t2fs_record));
         dir->previous = current_path->current;
         current_path->current = dir;
         return 0;
     }
+    printf("ERRO: Diretorio nao encontrado.\n");
     return -1;
+}
+
+int chdir2_generic (PATH *current_path, char *pathname)
+{
+    if(!is_path_consistent(pathname)) {
+        return -1;
+    }
+    if (pathname[0] == '/') {
+        chdir2_root(current_path);
+    }
+    char *dirname = dirname = strtok(pathname, "/");
+    while (dirname != NULL) {
+        if (chdir2_simple(current_path, dirname) != 0) {
+            return -1;
+        }
+    }
+    return 0;
 }
 
 int chdir2(char *pathname)
 {
-    checkSuperBloco();
-
-    return find_inode_from_path(superBloco, pathname, current_dir, &current_dir);
+    return chdir2_generic(&current_path, pathname);
 }
 
 int getcwd2(char *pathname, int size)
