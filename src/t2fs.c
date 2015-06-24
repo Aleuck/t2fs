@@ -761,19 +761,18 @@ int read2(FILE2 handle, char *buffer, int size)
 
     OPEN_FILE *file = get_file_from_list(handle, FILE_TYPE);
 
-    int first_block = file->position / superBloco.BlockSize;
+    unsigned int first_block = file->position / superBloco.BlockSize;
     unsigned int blocks_to_read = ((file->position + size) / superBloco.BlockSize) + 1;
-    unsigned int i, b;
-
+    unsigned int b;
     unsigned int buffer_size = blocks_to_read * superBloco.BlockSize;
+
     char to_read[buffer_size];
     // Le todos os blocos que fazem parte de buffer
     for (b = 0; b < blocks_to_read; b++) {
         int id_block = get_block_id_from_inode(first_block+b, file->inode);
         read_block(id_block, to_read+(superBloco.BlockSize*b), superBloco);
     }
-    int bytes_read = 0;
-    printf("to_read: %s\n", to_read);
+
     memcpy(buffer, to_read+file->position, size);
     buffer[size-1] = '\0';
     return 0;
