@@ -209,3 +209,15 @@ char * get_string_before_last_bar(char *search)
     memcpy( result, search, position );
     return result;
 }
+
+int last_index_of(char ch, char *string)
+{
+    int last_index = -1;
+    int i = 0;
+    while (string[i] != '\0') {
+        if (string[i] == ch) {
+            last_index = i;
+        }
+    }
+    return last_index;
+}

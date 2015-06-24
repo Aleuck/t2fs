@@ -12,6 +12,6 @@ char ** str_split(char* a_str, const char a_delim);
 int find_inode_from_path(struct t2fs_superbloco, char *filename, struct t2fs_inode current_dir, struct t2fs_inode *found_inode);
 char * get_string_after_bar(char* search);
 char * get_string_before_last_bar(char *search);
-
+int last_index_of(char ch, char *string);
 
 #endif //CODE2_FILEPATH_OPERATIONS_H
