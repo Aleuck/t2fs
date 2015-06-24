@@ -960,18 +960,14 @@ int write2(FILE2 handle, char *buffer, int size)
 {
     checkSuperBloco();
 
-    int block_size     = superBloco.BlockSize;
     OPEN_FILE *file   = get_file_from_list(handle, FILE_TYPE);
-    int position      = file->position;
-
-    unsigned int first_block_id    = position / block_size;
-    unsigned int blocks_to_read = (((position + size) - 1) / block_size) + 1;
-    char to_write[blocks_to_read][block_size];
-    printf("block_size: %d\n", block_size);
+    unsigned int first_block_id    = file->position / superBloco.BlockSize;
+    int blocks_to_read = (((file->position + size) - 1) / superBloco.BlockSize) + 1;
+    char to_write[blocks_to_read][superBloco.BlockSize];
+    printf("block_size: %d\n", superBloco.BlockSize);
     printf("blocks_to_read: %d\n", blocks_to_read);
 
-    int buffer_offset = 0;
-    unsigned int i;
+    int i;
     for (i = 0; i < blocks_to_read; i++) {
         int real_block_id = get_block_id_from_inode(first_block_id+i, file->inode);
         if (real_block_id == -1) { // Bloco ainda não está alocado ao arquivo
@@ -980,59 +976,60 @@ int write2(FILE2 handle, char *buffer, int size)
                 return -1;
             }
             real_block_id = get_block_id_from_inode(first_block_id+i, file->inode);
-            // inicia bloco com caracter '\0'
         }
         read_block(real_block_id, &to_write[i][0], superBloco);
-
-        int off1 = block_size - file->position;
-        int off2 = size - file->position;
-        printf("off1: %d, off2: %d\n", off1, off2);
-        if (off1 < off2) {
-            buffer_offset += off1;
-        } else {
-            buffer_offset += off2;
+    }
+    // Escreve buffer passado
+    unsigned int j = 0;
+    int b = 0;
+    int bytes_written = 0;
+    i = 0;
+    for (b = 0; b < blocks_to_read; b++) {
+        for (j = 0; j < superBloco.BlockSize; j++) {
+            if (bytes_written == size) {
+                break;
+            }
+            if ((j + (b*superBloco.BlockSize)) >= file->position) {
+                to_write[b][j] = buffer[bytes_written];
+                bytes_written++;
+                file->position++;
+            }
         }
-        memcpy(to_write[i]+(position*i), buffer+(i*block_size), buffer_offset);
-        printf("buffer_offset: %u\n", buffer_offset);
-        file->position += buffer_offset;
-        printf("position: %d\n", position);
+    }
+    printf("position: %u\n", file->position);
+    for (b = 0; b < blocks_to_read; b++) {
+        char buf[superBloco.BlockSize];
+        strncpy(buf, &to_write[b][0], superBloco.BlockSize);
+        printf("bloco %d:\n", b);
+        for (j = 0; j < superBloco.BlockSize; j++) {
+            printf("%c", buf[j]);
+        }
+        printf("\n");
     }
 
-    printf("buffer: %s\n", buffer);
+    for (b = 0; b < blocks_to_read; b++) {
+        char buf[superBloco.BlockSize];
+        for (j = 0; j < superBloco.BlockSize; j++) {
+            buf[i] = to_write[b][i];
+        }
 
-    printf("position: %d\n", file->position);
+        int id_block = get_block_id_from_inode(first_block_id + b, file->inode);
+        printf("id do block: %d\n", id_block);
 
-    char last_block[block_size];
-    if (position/(blocks_to_read*block_size) < 1) {
-        printf("\nPOSICAO PRA ESCRITA E RELATIVA\n");
+        write_block(id_block, buf, superBloco);
     }
 
-    int r_pos = file->position - block_size*(blocks_to_read-1);
-    printf("blocks_to_read: %d\n", blocks_to_read);
-    printf("\nr_pos: %d\n", r_pos);
-    printf("block_size: %d\n", block_size);
-    printf("to write real: %s\n", to_write[blocks_to_read-1]);
-    for (i = 0; i < r_pos; i++) {
-        last_block[i] = to_write[blocks_to_read-1][i];
+    printf("\nFOI LIDO: \n");
+    for (b = 0; b < blocks_to_read; b++) {
+        char buf[superBloco.BlockSize];
+        int id_block = get_block_id_from_inode(first_block_id+b, file->inode);
+        printf("id do block %d\n", id_block);
+        read_block(id_block, buf, superBloco);
+
+        printf("bloco %d:\n", b);
+        printf("%s", buf);
+        printf("\n");
     }
-    if (r_pos < block_size) {
-        last_block[r_pos] = '\0';
-    }
-
-    int id_block;
-    for (i = 0; i < (blocks_to_read-1); i++) {
-        id_block = get_block_id_from_inode(first_block_id+i, file->inode);
-        write_block(id_block, &to_write[i][0], superBloco);
-    }
-    id_block = get_block_id_from_inode(first_block_id+i, file->inode);
-    write_block(id_block, last_block, superBloco);
-    //printf("to write: %s\n", last_block);
-    char result[block_size];
-    read_block(get_block_id_from_inode(0, file->inode), result, superBloco);
-
-    printf("%s", result);
-
-
     printf("\nEND OF FILE\n");
     return 0;
 }
