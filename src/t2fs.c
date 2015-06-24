@@ -17,6 +17,7 @@ typedef enum {FILE_TYPE, DIR_TYPE} file_type;
 
 typedef struct open_file {
     struct t2fs_inode *inode;
+    unsigned int id_inode;
     unsigned int position;
     int handle;
     struct open_file *next;
@@ -696,6 +697,7 @@ FILE2 open2(char *filename)
     OPEN_FILE *open_file = malloc(sizeof(*open_file));
     open_file->inode = malloc(sizeof(struct t2fs_inode));
     *(open_file->inode) = read_i_node(file_record->i_node);
+    open_file->id_inode = file_record->i_node;
     open_file->position = 0;
     open_file->handle = current_handle;
     open_file->next = NULL;
@@ -986,7 +988,8 @@ int write2(FILE2 handle, char *buffer, int size)
     i = 0;
     for (b = 0; b < blocks_to_read; b++) {
         for (j = 0; j < superBloco.BlockSize; j++) {
-            if (bytes_written == size) {
+            if (bytes_written == (size - 1)) {
+                to_write[b][j] = buffer[bytes_written];
                 break;
             }
             if ((j + (b*superBloco.BlockSize)) >= file->position) {
@@ -1030,7 +1033,11 @@ int write2(FILE2 handle, char *buffer, int size)
         printf("%s", buf);
         printf("\n");
     }
-    printf("\nEND OF FILE\n");
+
+    write_inode(file->id_inode, file->inode);
+    printf("Lendo Inode do Arquivo:\n");
+    struct t2fs_inode new_inode = read_i_node(file->id_inode);
+    print_inode(new_inode);
     return 0;
 }
 
