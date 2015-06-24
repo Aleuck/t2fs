@@ -22,13 +22,13 @@ int main(int argc, char *argv[])
         "pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp"
         "pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp"
         "pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppppp"
-        "pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppox";
+        "pppppppppppppppppppppppppppppppppppppppppppppppppppppppppppoxxxxxxxxaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaz";
     int size = 0;
     while (buffer[size] != '\0') {
         size++;
     }
     printf("BUFFER SIZE: %d\n", size);
-    write2(handleArq, buffer, 1025);
+    write2(handleArq, buffer, 1086);
 
 //    create2("MeuArquivo");
 //    create2("LeoArq\0");
