@@ -18,6 +18,7 @@ typedef enum {FILE_TYPE, DIR_TYPE} file_type;
 typedef struct open_file {
     struct t2fs_record *record; // Adicona record a arquivo aberto
     struct t2fs_inode *inode;
+    DWORD parent_inode;
     //unsigned int id_inode; // Remove, pois ja tem no *record
     unsigned int position;
     int handle;
@@ -212,6 +213,11 @@ int add_record_to_index_array(DWORD *dataPtr, int dataPtrLength, struct t2fs_rec
             if (records[record_index].TypeVal == TYPEVAL_INVALIDO) {
                 // encontrada posição livre
                 break;
+            } else {
+                if (strcmp(records[record_index].name, file_record.name) == 0) {
+                    // encontrado registro com mesmo nome
+                    break;
+                }
             }
         }
         if (record_index != records_in_block) {
@@ -571,6 +577,7 @@ int add_opened_file_to_list(OPEN_FILE *open_file, file_type type)
 {
     OPEN_FILE *searcher;
     if (type == FILE_TYPE) {
+        printf("adding opened file to list\n");
         if (open_files->first == NULL) { // Lista está vazia
             open_files->first = open_file;
             open_files->size++;
@@ -589,6 +596,7 @@ int add_opened_file_to_list(OPEN_FILE *open_file, file_type type)
         open_files->size++;
         return 0;
     } else {
+        printf("adding opened dir to list\n");
         if (open_directories->first == NULL) {
             open_directories->first = open_file;
             open_directories->size++;
@@ -664,6 +672,7 @@ FILE2 create2(char *filename)
 
     //if (!is_name_consistent(striped_filename)) {
     if (!is_name_consistent(filename)) {
+        printf("ERRO: nome inconsistente\n");
         return -1;
     }
 
@@ -723,13 +732,22 @@ int delete2(char *filename)
 
 FILE2 open2(char *filename)
 {
+    if (!is_name_consistent(filename)) {
+        printf("ERRO: nome inconsistente\n");
+        return -1;
+    }
     checkSuperBloco();
     if ((open_files->size + open_directories->size) == MAX_OPEN_FILES) {
         printf("ERRO: numero maximo de arquivos abertos (20)\n");
         return -1;
     }
     struct t2fs_record *file_record = malloc(sizeof(*file_record));
-    find_record_in_inode(current_dir, filename, file_record);
+    struct t2fs_inode current_dir = read_i_node(current_path.current->record.i_node);
+    if (find_record_in_inode(current_dir, filename, file_record) == -1) {
+        free(file_record);
+        printf("ERRO: registro nao encontrado\n");
+        return -1;
+    }
 
     OPEN_FILE *open_file = malloc(sizeof(*open_file));
     open_file->record = file_record;
@@ -738,6 +756,7 @@ FILE2 open2(char *filename)
     open_file->position = 0;
     open_file->handle = current_handle;
     open_file->next = NULL;
+    open_file->parent_inode = current_path.current->record.i_node;
     add_opened_file_to_list(open_file, FILE_TYPE);
 
     current_handle++;
@@ -1182,7 +1201,8 @@ int write2(FILE2 handle, char *buffer, int size)
         write_block(id, &to_write[b][0], superBloco);
     }
     write_inode(file->record->i_node, file->inode);
-
+    struct t2fs_inode parent_inode = read_i_node(file->parent_inode);
+    add_record_to_inode(&parent_inode, *(file->record));
     return 0;
 }
 
@@ -1212,8 +1232,10 @@ int mkdir2(char *pathname)
     memset(&dest_path, 0, sizeof(PATH));
 
     if (!is_path_consistent(pathname)) {
+        printf("ERRO: caminho inconsistente\n");
         return -1;
     }
+
     int pathlength = strlen(pathname) + 1;
     char *path = malloc(sizeof(char) * pathlength);
     strncpy(path, pathname, pathlength);
@@ -1305,8 +1327,7 @@ int mkdir2(char *pathname)
 
     write_inode(idx, new_directory_inode);
     free(new_directory_inode);
-    return 0;
-    //return opendir2(pathname);
+    return opendir2(pathname);
 }
 
 int rmdir2(char *pathname)
@@ -1346,25 +1367,44 @@ int rmdir2(char *pathname)
 
 DIR2 opendir2(char *pathname)
 {
+    if (!is_path_consistent(pathname)) {
+        printf("ERRO: caminho inconsistente\n");
+        return -1;
+    }
     checkSuperBloco();
+    PATH path;
+    memset(&path, 0, sizeof(PATH));
 
+    // allows relative pathnames
+    printf("opendir2: copy_path:\n");
+    copy_path(&path, &current_path);
+
+    printf("opendir2: chdir2_generic:\n");
+    if (chdir2_generic(&path, pathname) != 0) {
+        return -1;
+    }
+
+    printf("opendir2: check open count:\n");
     if ((open_files->size + open_directories->size) == MAX_OPEN_FILES) {
         printf("ERRO: numero maximo de arquivos abertos (20)\n");
         return -1;
     }
-    if (pathname[0] == '/' && open_directories->first == NULL) { //diretório raíz e primeiro diretorio
-        OPEN_FILE *open_file = malloc(sizeof *open_file);
-        open_file->inode    = malloc(sizeof(struct t2fs_inode));
-        *(open_file->inode)    = read_i_node(0);
-        open_file->position = 0;
-        open_file->handle   = current_handle;
-        open_file->next     = NULL;
-        add_opened_file_to_list(open_file, DIR_TYPE);
-
-        current_handle++;
-        return current_handle-1;
-    }
-    return -1;
+    printf("opendir2: mallocs:\n");
+    OPEN_FILE *open_file = malloc(sizeof *open_file);
+    open_file->inode    = malloc(sizeof(struct t2fs_inode));
+    printf("opendir2: read_i_node:\n");
+    *(open_file->inode)    = read_i_node(path.current->record.i_node);
+    open_file->position = 0;
+    open_file->handle   = current_handle;
+    open_file->next     = NULL;
+    if (path.current->previous)
+        open_file->parent_inode = path.current->previous->record.i_node;
+    else
+        open_file->parent_inode = 0;
+    printf("opendir2: read_i_node:\n");
+    add_opened_file_to_list(open_file, DIR_TYPE);
+    current_handle++;
+    return current_handle-1;
 }
 
 /**
@@ -1408,7 +1448,10 @@ int readdir2(DIR2 handle, DIRENT2 *dentry)
         return -1;
     }
 
-    read_records(workingFile->inode->dataPtr[0], records); //lê records apontados pelo primeiro ponteiro de I-node
+    struct t2fs_inode dir_inode = read_i_node(workingFile->record->i_node);
+    read_records(dir_inode.dataPtr[0], records);
+
+    //read_records(workingFile->inode->dataPtr[0], records); //lê records apontados pelo primeiro ponteiro de I-node
 
     if (records[workingFile->position].TypeVal == 1 || records[workingFile->position].TypeVal == 2) { //entrada válida
         memcpy(dentry->name,records[workingFile->position].name,31);
