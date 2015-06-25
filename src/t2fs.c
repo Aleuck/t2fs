@@ -1343,23 +1343,32 @@ DIR2 opendir2(char *pathname)
     memset(&path, 0, sizeof(PATH));
 
     // allows relative pathnames
+    printf("opendir2: copy_path:\n");
     copy_path(&path, &current_path);
 
+    printf("opendir2: chdir2_generic:\n");
     if (chdir2_generic(&path, pathname) != 0) {
         return -1;
     }
 
+    printf("opendir2: check open count:\n");
     if ((open_files->size + open_directories->size) == MAX_OPEN_FILES) {
         printf("ERRO: numero maximo de arquivos abertos (20)\n");
         return -1;
     }
+    printf("opendir2: mallocs:\n");
     OPEN_FILE *open_file = malloc(sizeof *open_file);
     open_file->inode    = malloc(sizeof(struct t2fs_inode));
+    printf("opendir2: read_i_node:\n");
     *(open_file->inode)    = read_i_node(path.current->record.i_node);
     open_file->position = 0;
     open_file->handle   = current_handle;
     open_file->next     = NULL;
-    open_file->parent_inode = path.current->previous->record.i_node;
+    if (path.current->previous)
+        open_file->parent_inode = path.current->previous->record.i_node;
+    else
+        open_file->parent_inode = 0;
+    printf("opendir2: read_i_node:\n");
     add_opened_file_to_list(open_file, DIR_TYPE);
     current_handle++;
     return current_handle-1;
