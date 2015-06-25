@@ -212,6 +212,11 @@ int add_record_to_index_array(DWORD *dataPtr, int dataPtrLength, struct t2fs_rec
             if (records[record_index].TypeVal == TYPEVAL_INVALIDO) {
                 // encontrada posição livre
                 break;
+            } else {
+                if (strcmp(records[record_index].name, file_record.name) == 0) {
+                    // encontrado registro com mesmo nome
+                    break;
+                }
             }
         }
         if (record_index != records_in_block) {
@@ -1163,7 +1168,8 @@ int write2(FILE2 handle, char *buffer, int size)
         write_block(id, &to_write[b][0], superBloco);
     }
     write_inode(file->record->i_node, file->inode);
-
+    struct t2fs_inode parent_inode = read_i_node(file->parent_inode);
+    add_record_to_inode(&parent_inode, *(file->record));
     return 0;
 }
 
