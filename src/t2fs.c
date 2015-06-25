@@ -1104,6 +1104,9 @@ int write2(FILE2 handle, char *buffer, int size)
     checkSuperBloco();
 
     OPEN_FILE    *file          = get_file_from_list(handle, FILE_TYPE);
+    if (file == NULL)
+        return -1;
+
     unsigned int first_block_id = file->position / superBloco.BlockSize;
     int          blocks_to_read = (((file->position + size) - 1) / superBloco.BlockSize) + 1;
     char         to_write[blocks_to_read][superBloco.BlockSize];
