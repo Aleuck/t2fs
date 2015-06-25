@@ -204,7 +204,6 @@ int add_record_to_index_array(DWORD *dataPtr, int dataPtrLength, struct t2fs_rec
             init_records_block(id_block);
             break;
         }
-        printf("read recods from block %d\n", id_block);
         read_records(id_block, records);
         for (record_index = 0; record_index < records_in_block; record_index++) {
             if (records[record_index].TypeVal == TYPEVAL_INVALIDO) {
@@ -219,7 +218,6 @@ int add_record_to_index_array(DWORD *dataPtr, int dataPtrLength, struct t2fs_rec
     }
     if (record_index != records_in_block) {
         records[record_index] = file_record;
-        printf("write recods from block %d\n", id_block);
         write_records_on_block(id_block, records);
         return 0;
     }
@@ -233,6 +231,7 @@ int add_record_to_inode(struct t2fs_inode dir_inode, struct t2fs_record file_rec
     DWORD doubleInd[ptrs_in_block];
     int i;
 
+    printf("\n");
     // tenta inserir nos ponteiros diretos
     if (add_record_to_index_array(dir_inode.dataPtr, 10, file_record) == 0) {
         return 0;
@@ -361,7 +360,6 @@ int write_inode(int id_inode, struct t2fs_inode *inode)
 
     write_block(superBloco.InodeBlock + block_relative, buffer, superBloco);
     set_on_bitmap(id_inode, 1, INODE, superBloco);
-
     return 0;
 }
 
@@ -950,12 +948,12 @@ int allocate_block_on_inode(struct t2fs_inode *inode)
             new_id = get_free_bit_on_bitmap(BLOCK, superBloco);
             set_on_bitmap(new_id, 1, BLOCK, superBloco);
             inode->dataPtr[i] = new_id;
-            printf("Bloco alocado no indice %d com o bloco %d\n", i, new_id);
+            //printf("Bloco alocado no indice %d com o bloco %d\n", i, new_id);
             return 0;
         }
     }
     if (inode->singleIndPtr == INVALID_POINTER) { // Aloca bloco de indices
-        printf("Alocando bloco de indices\n");
+        //printf("Alocando bloco de indices\n");
 
         new_id = get_free_bit_on_bitmap(BLOCK, superBloco);
         inode->singleIndPtr = new_id;
@@ -1139,17 +1137,14 @@ int mkdir2(char *pathname)
     } else {
         strncpy(name, path, sizeof(name));
     }
-    printf("dirname: %s\n", name);
+    //printf("dirname: %s\n", name);
 
 
     struct t2fs_record *new_directory_record;
     struct t2fs_inode *new_directory_inode;
 
     int idx = get_free_bit_on_bitmap(INODE, superBloco);
-    //printf("Primeiro indice livre de inode e %d", idx);
-
-    // TODO: No momento só guarda no diretório corrente,
-    //       não permite passagem do caminho completo.
+    //printf("Primeiro indice livre de inode e %d\n", idx);
 
     // Cria o record para o diretorio
     new_directory_record = malloc(sizeof *new_directory_record);
@@ -1164,6 +1159,7 @@ int mkdir2(char *pathname)
     new_directory_inode = malloc(sizeof *new_directory_inode);
     initialize_inode(new_directory_inode);
 
+    //printf("*add new dir record to parents inode\n");
     // get inode where the dir is being created
     struct t2fs_inode current_dir;
     current_dir = read_i_node(dest_path.current->record.i_node);
@@ -1171,6 +1167,9 @@ int mkdir2(char *pathname)
     write_inode(dest_path.current->record.i_node, &current_dir);
     free(new_directory_record);
 
+    write_inode(idx, new_directory_inode);
+
+    //printf("*add record to self `.`\n");
     // Cria o record para o self '.'
     struct t2fs_record *self_record;
     self_record = malloc(sizeof *self_record);
@@ -1178,22 +1177,26 @@ int mkdir2(char *pathname)
     self_record->i_node         = idx;
     self_record->blocksFileSize = 1;         // ocupa 1 inode quando criado
     self_record->bytesFileSize  = RECORD_SIZE * 2;        // ocupa dois records
-    memcpy(self_record->name, ".\n", 2);
+    memcpy(self_record->name, ".\0", 2);
     add_record_to_inode(*new_directory_inode, *self_record);
     free(self_record);
 
+    write_inode(idx, new_directory_inode);
+
+    //printf("*add record to self `..`\n");
     // Cria o record para o pai '..'
     struct t2fs_record *father_record;
-    int idx_pai = 0; //TODO pai nao eh sempre rais
+    int idx_pai = dest_path.current->record.i_node;
     father_record = malloc(sizeof *father_record);
     father_record->TypeVal        = TYPEVAL_DIRETORIO;
     father_record->i_node         = idx_pai;
     father_record->blocksFileSize = -1;         // TODO tamanho de blocos do dir pai?
     father_record->bytesFileSize  = -1;        //  TODO tamanho do dir pai? imagina atualizar tudo isso
-    memcpy(father_record->name, "..\n", 3);
+    memcpy(father_record->name, "..\0", 3);
     add_record_to_inode(*new_directory_inode, *father_record);
 
     write_inode(idx, new_directory_inode);
+
     free(father_record);
 
     free(new_directory_inode);

@@ -25,7 +25,6 @@ int write_block(int id_block, char* buffer, struct t2fs_superbloco superBloco)
         // lê direto para o buffer na posição correta
         write_sector(start_sector + sector_I, buffer + SECTOR_SIZE * sector_I);
     }
-
     return 0;
 }
 
