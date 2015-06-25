@@ -710,7 +710,6 @@ FILE2 open2(char *filename)
     open_file->record = file_record;
     open_file->inode = malloc(sizeof(struct t2fs_inode));
     *(open_file->inode) = read_i_node(file_record->i_node);
-    open_file->id_inode = file_record->i_node;
     open_file->position = 0;
     open_file->handle = current_handle;
     open_file->next = NULL;
@@ -1090,7 +1089,7 @@ int write2(FILE2 handle, char *buffer, int size)
         int id = get_block_id_from_inode(first_block_id + b, file->inode);
         write_block(id, &to_write[b][0], superBloco);
     }
-    write_inode(file->id_inode, file->inode);
+    write_inode(file->record->i_node, file->inode);
 
     return 0;
 }
