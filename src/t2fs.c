@@ -973,6 +973,23 @@ int get_last_abstract_block_from_inode(struct t2fs_inode *inode)
     return i;
 }
 
+int set_position_eof(OPEN_FILE *file)
+{
+    int id = get_last_abstract_block_from_inode(file->inode);
+    int position = id * superBloco.BlockSize;
+
+    char buffer[superBloco.BlockSize];
+    read_block(id, buffer, superBloco);
+
+    int i = 0;
+    while (buffer[i] != '\0') {
+        i++;
+    }
+
+    file->position = position + i;
+
+    return 0;
+}
 /**
  *  Funcao que dado o handle do arquivo, escreve no mesmo o conteudo
  *  do buffer.
@@ -988,11 +1005,7 @@ int write2(FILE2 handle, char *buffer, int size)
     printf("block_size: %d\n", superBloco.BlockSize);
     printf("blocks_to_read: %d\n", blocks_to_read);
 
-    if (file->position == (unsigned int) -1) {
-        int id = get_last_abstract_block_from_inode(file->inode);
-        int position = id * superBloco.BlockSize;
 
-    }
     int i;
     for (i = 0; i < blocks_to_read; i++) {
         int real_block_id = get_block_id_from_inode(first_block_id+i, file->inode);
