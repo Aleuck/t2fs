@@ -990,6 +990,20 @@ int set_position_eof(OPEN_FILE *file)
 
     return 0;
 }
+
+int get_eof_position(int id_block)
+{
+    char buffer[superBloco.BlockSize];
+    read_block(id_block, buffer, superBloco);
+
+    unsigned int i = 0;
+    while (buffer[i] != '\0') {
+        i++;
+    }
+
+    return i;
+}
+
 /**
  *  Funcao que dado o handle do arquivo, escreve no mesmo o conteudo
  *  do buffer.
@@ -1001,64 +1015,55 @@ int write2(FILE2 handle, char *buffer, int size)
     OPEN_FILE    *file          = get_file_from_list(handle, FILE_TYPE);
     unsigned int first_block_id = file->position / superBloco.BlockSize;
     int          blocks_to_read = (((file->position + size) - 1) / superBloco.BlockSize) + 1;
-    char         to_write[superBloco.BlockSize];
+    char         to_write[blocks_to_read][superBloco.BlockSize];
+
     printf("block_size: %d\n", superBloco.BlockSize);
     printf("blocks_to_read: %d\n", blocks_to_read);
 
-    int i;
-    for (i = 0; i < blocks_to_read; i++) {
-        int real_block_id = get_block_id_from_inode(first_block_id+i, file->inode);
+    int b;
+    for (b = 0; b < blocks_to_read; b++) {
+        int real_block_id = get_block_id_from_inode(first_block_id+b, file->inode);
         if (real_block_id == -1) { // Bloco ainda não está alocado ao arquivo
             if (allocate_block_on_inode(file->inode) == -1) {
                 printf("ERRO: Falha ao tentar alocar bloco a arquivo.\n");
                 return -1;
             }
-            real_block_id = get_block_id_from_inode(first_block_id+i, file->inode);
+            real_block_id = get_block_id_from_inode(first_block_id+b, file->inode);
         }
-        read_block(real_block_id, to_write, superBloco);
-
+        // Le o bloco necessario para a escrita
+        read_block(real_block_id, &to_write[b][0], superBloco);
     }
-    /* // Escreve buffer passado */
-    /* unsigned int j = 0; */
-    /* int b = 0; */
-    /* int bytes_written = 0; */
-    /* i = 0; */
-    /* for (b = 0; b < blocks_to_read; b++) { */
-    /*     for (j = 0; j < superBloco.BlockSize; j++) { */
-    /*         if (bytes_written == (size - 1)) { */
-    /*             to_write[b][j] = buffer[bytes_written]; */
-    /*             break; */
-    /*         } */
-    /*         if ((j + (b*superBloco.BlockSize)) >= file->position) { */
-    /*             to_write[b][j] = buffer[bytes_written]; */
-    /*             bytes_written++; */
-    /*             file->position++; */
-    /*         } */
-    /*     } */
-    /* } */
-    /* printf("position: %u\n", file->position); */
-    /* for (b = 0; b < blocks_to_read; b++) { */
-    /*     char buf[superBloco.BlockSize]; */
-    /*     strncpy(buf, &to_write[b][0], superBloco.BlockSize); */
-    /*     printf("bloco %d:\n", b); */
-    /*     for (j = 0; j < superBloco.BlockSize; j++) { */
-    /*         printf("%c", buf[j]); */
-    /*     } */
-    /*     printf("\n"); */
-    /* } */
+    // Escreve buffer passado
+    unsigned int j = 0;
+    int bytes_written = 0;
+    for (b = 0; b < blocks_to_read; b++) {
+        for (j = 0; j < superBloco.BlockSize-1; j++) {
+            if (bytes_written == size) {
+                break;
+            }
+            if ((j + (b*superBloco.BlockSize)) >= file->position) {
+                to_write[b][j] = buffer[bytes_written];
+                bytes_written++;
+                file->position++;
+            }
+            to_write[b][superBloco.BlockSize-1] = '\0';  // Força fim de linha
+        }
+    }
+    for (b = 0; b < blocks_to_read; b++) {
+        printf("bloco %d:\n%s\n", b, to_write[b]);
+    }
+    for (b = 0; b < blocks_to_read; b++) {
+        int id = get_block_id_from_inode(first_block_id + b, file->inode);
+        write_block(id, &to_write[b][0], superBloco);
+    }
+    char buf[superBloco.BlockSize];
 
-    /* for (b = 0; b < blocks_to_read; b++) { */
-    /*     char buf[superBloco.BlockSize]; */
-    /*     for (j = 0; j < superBloco.BlockSize; j++) { */
-    /*         buf[i] = to_write[b][i]; */
-    /*     } */
-
-    /*     int id_block = get_block_id_from_inode(first_block_id + b, file->inode); */
-    /*     printf("id do block: %d\n", id_block); */
-
-    /*     write_block(id_block, buf, superBloco); */
-    /* } */
-
+    printf("O QUE EU LI\n");
+    for (b = 0; b < blocks_to_read; b++) {
+        int id = get_block_id_from_inode(first_block_id + b, file->inode);
+        read_block(id, buf, superBloco);
+        printf("bloco %d:\n%s\n", b, buf);
+    }
     /* printf("\nFOI LIDO: \n"); */
     /* for (b = 0; b < blocks_to_read; b++) { */
     /*     char buf[superBloco.BlockSize]; */
@@ -1075,7 +1080,7 @@ int write2(FILE2 handle, char *buffer, int size)
     /* printf("Lendo Inode do Arquivo:\n"); */
     /* struct t2fs_inode new_inode = read_i_node(file->id_inode); */
     /* print_inode(new_inode); */
-    /* return 0; */
+    return 0;
 }
 
 int seek2(FILE2 handle, unsigned int offset)
