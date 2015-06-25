@@ -1055,7 +1055,7 @@ int get_last_abstract_block_from_inode(struct t2fs_inode *inode)
     while (get_block_id_from_inode(i, inode) != -1) {
         i++;
     }
-    return i;
+    return i-1;
 }
 
 int set_position_eof(OPEN_FILE *file)

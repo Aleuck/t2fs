@@ -29,7 +29,7 @@ int main(int argc, char *argv[])
     printf("BUFFER SIZE: %d\n", size+1);
     write2(handleArq, buffer, size+1);
 
-    seek2(handleArq, 0);
+    seek2(handleArq, -1);
     char buffer2[] = "LEONARDO";
     write2(handleArq, buffer2, 8);
 
