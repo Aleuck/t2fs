@@ -77,7 +77,7 @@ int chdir2_generic (PATH *current_path, char *pathname);
 /**
  * Usado para testes
  */
-struct t2fs_superbloco get_superbloco(){
+struct t2fs_superbloco get_superbloco() {
     checkSuperBloco();
     return superBloco;
 }
@@ -710,7 +710,6 @@ FILE2 open2(char *filename)
     open_file->record = file_record;
     open_file->inode = malloc(sizeof(struct t2fs_inode));
     *(open_file->inode) = read_i_node(file_record->i_node);
-    open_file->id_inode = file_record->i_node;
     open_file->position = 0;
     open_file->handle = current_handle;
     open_file->next = NULL;
@@ -1090,7 +1089,7 @@ int write2(FILE2 handle, char *buffer, int size)
         int id = get_block_id_from_inode(first_block_id + b, file->inode);
         write_block(id, &to_write[b][0], superBloco);
     }
-    write_inode(file->id_inode, file->inode);
+    write_inode(file->record->i_node, file->inode);
 
     return 0;
 }
@@ -1204,6 +1203,18 @@ int mkdir2(char *pathname)
 int rmdir2(char *pathname)
 {
     checkSuperBloco();
+
+    if (!is_path_consistent(pathname)) {
+        printf("Caminho passado nao e consistente\n");
+        return -1;
+    }
+
+    char* dirname = get_string_after_bar(pathname);
+    chdir2(pathname);                   // Muda para o pathname
+    chdir2_simple(&current_path, ".."); // Retorna para o diretorio pai
+
+    int inode_indices = current_path.current->record.i_node; // Pega inode do diretorio pai
+    DWORD *indices = get_indices(inode_indices);
     return 0;
 }
 

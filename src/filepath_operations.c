@@ -81,7 +81,8 @@ int find_directory_in_inode(struct t2fs_superbloco superBloco, char *striped_fil
     return 0;
 }
 
-char **str_split(char* a_str, const char a_delim) {
+char **str_split(char* a_str, const char a_delim)
+{
     char** result    = 0;
     size_t count     = 0;
     char* tmp        = a_str;
