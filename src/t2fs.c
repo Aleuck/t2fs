@@ -79,7 +79,7 @@ int free_path(PATH *path);
 /**
  * Usado para testes
  */
-struct t2fs_superbloco get_superbloco(){
+struct t2fs_superbloco get_superbloco() {
     checkSuperBloco();
     return superBloco;
 }
@@ -966,30 +966,32 @@ int allocate_block(bitmap_type type)
 
 int allocate_block_on_inode(struct t2fs_inode *inode)
 {
-    int new_id;
-
     int i;
     for (i = 0; i < 10; i++) {
         if (inode->dataPtr[i] == INVALID_POINTER) {
-            new_id = get_free_bit_on_bitmap(BLOCK, superBloco);
-            set_on_bitmap(new_id, 1, BLOCK, superBloco);
-            inode->dataPtr[i] = new_id;
-            //printf("Bloco alocado no indice %d com o bloco %d\n", i, new_id);
+            int new_ind = allocate_block(BLOCK);
+            inode->dataPtr[i] = new_ind;
+            if (new_ind == -1) {
+                return -1;
+            }
             return 0;
         }
     }
+
     if (inode->singleIndPtr == INVALID_POINTER) { // Aloca bloco de indices
-        //printf("Alocando bloco de indices\n");
-
-        new_id = get_free_bit_on_bitmap(BLOCK, superBloco);
-        inode->singleIndPtr = new_id;
-
+        int new_ind = allocate_block(BLOCK);
+        inode->singleIndPtr = new_ind;
+        if (new_ind == -1) {
+            return -1;
+        }
         init_indices_block(inode->singleIndPtr);
-        set_on_bitmap(inode->singleIndPtr, 1, BLOCK, superBloco);
 
         DWORD *indices = get_indices(inode->singleIndPtr);
-        indices[0] = get_free_bit_on_bitmap(BLOCK, superBloco);
-        set_on_bitmap(indices[0], 1, BLOCK, superBloco);
+        new_ind = allocate_block(BLOCK);
+        indices[0] = new_ind;
+        if (new_ind == -1) {
+            return -1;
+        }
 
         write_indices(inode->singleIndPtr, indices);
         free(indices);
@@ -1000,25 +1002,51 @@ int allocate_block_on_inode(struct t2fs_inode *inode)
     //print_indices(inode->singleIndPtr);
     for (i = 0; i < get_num_indices_in_block(); i++) {
         if (indices[i] == INVALID_POINTER) {
-            new_id = get_free_bit_on_bitmap(BLOCK, superBloco);
-            indices[i] = new_id;
-
-            set_on_bitmap(new_id, 1, BLOCK, superBloco);
+            int new_ind = allocate_block(BLOCK);
+            indices[i] = new_ind;
+            if (new_ind == -1) {
+                return -1;
+            }
             write_indices(inode->singleIndPtr, indices);
             free(indices);
             return 0;
         }
     }
     // Nenhum indice livre em single ind.
-    printf("\nAGORA TEM QUE FAZER O DUPLO ENDERECO\n");
-    //TODO: TERMINAR DUPLA INDIRECAO
-    //if (inode->doubleIndPtr == INVALID_POINTER) {
-    //    new_id = get_free_bit_on_bitmap(BLOCK, superBloco);
-    //    inode->doubleIndPtr = new_id;
-    //    set_on_bitmap(inode->doubleIndPtr, 1, BLOCK, superBloco);
-    //    init_indices_block(inode->doubleIndPtr);
-    //}
-    return 0;
+    if (inode->doubleIndPtr == INVALID_POINTER) {
+        int new_ind = allocate_block(BLOCK);
+        inode->doubleIndPtr = new_ind;
+        if (new_ind == -1) {
+            return -1;
+        }
+        init_indices_block(inode->doubleIndPtr);
+    }
+    DWORD *double_indices = get_indices(inode->doubleIndPtr);
+    for (i = 0; i < get_num_indices_in_block(); i++) {
+        if (double_indices[i] == INVALID_POINTER) {
+            int new_ind = allocate_block(BLOCK);
+            double_indices[i] = new_ind;
+            if (new_ind == -1) {
+                return -1;
+            }
+            init_indices_block(double_indices[i]);
+        }
+        int j;
+        DWORD *sing_indices = get_indices(double_indices[i]);
+        for (j = 0; j < get_num_indices_in_block(); j++) {
+            if (sing_indices[j] == INVALID_POINTER) {
+                int new_ind = allocate_block(BLOCK);
+                sing_indices[j] = new_ind;
+                if (new_ind == -1) {
+                    return -1;
+                }
+                write_indices(double_indices[i], sing_indices);
+                free(sing_indices);
+                return 0;
+            }
+        }
+    }
+    return -1;
 }
 
 int get_last_abstract_block_from_inode(struct t2fs_inode *inode)
@@ -1244,6 +1272,35 @@ int mkdir2(char *pathname)
 int rmdir2(char *pathname)
 {
     checkSuperBloco();
+
+    /* if (!is_path_consistent(pathname)) { */
+    /*     printf("Caminho passado nao e consistente\n"); */
+    /*     return -1; */
+    /* } */
+
+    /* char* dirname = get_string_after_bar(pathname); */
+    /* chdir2(pathname);                   // Muda para o pathname */
+    /* chdir2_simple(&current_path, ".."); // Retorna para o diretorio pai */
+
+    /* int inode_indices = current_path.current->record.i_node; // Pega inode do diretorio pai */
+    /* DWORD *indices = get_indices(inode_indices); */
+    int blocks = 0;
+    struct t2fs_inode inode;
+    if ((get_bitmap_state(4, INODE, superBloco)) == 0) {
+        printf("nao estou sendo utilizado\n");
+        inode = read_i_node(4);
+        initialize_inode(&inode);
+    }
+    int i;
+    for (i = 0; i < 268; i++) {
+        if (allocate_block_on_inode(&inode) == 0) {
+            printf("allocated 1 block\n");
+            blocks++;
+        }
+    }
+
+    printf("blocks allocated on inode: %d\n", blocks);
+    print_inode(inode);
     return 0;
 }
 
