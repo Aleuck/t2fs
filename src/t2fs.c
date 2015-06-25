@@ -51,6 +51,7 @@ PATH current_path = {0};
 
 void checkSuperBloco();
 int allocate_block(bitmap_type type);
+int free_block(int id, bitmap_type type);
 void init_indices_block(int id_block);
 void init_data_block(int id_block);
 void init_records_block(int id_block);
@@ -275,6 +276,80 @@ int add_record_to_inode(struct t2fs_inode *dir_inode, struct t2fs_record file_re
         }
     }
     return -1;
+}
+
+int replace_record_in_index_array(DWORD *dataPtr, int dataPtrLength, char *replaced_record, struct t2fs_record new_record)
+{
+    int records_in_block = get_records_in_block();
+    struct t2fs_record records[records_in_block];
+    DWORD id_block;
+    int dataPtr_index;
+    int record_index;
+
+    for (dataPtr_index = 0; dataPtr_index < dataPtrLength; dataPtr_index++) {
+        id_block = dataPtr[dataPtr_index];
+        if (id_block == INVALID_POINTER) {
+            id_block = allocate_block(BLOCK);
+            init_records_block(id_block);
+            dataPtr[dataPtr_index] = id_block;
+        }
+        read_records(id_block, records);
+        for (record_index = 0; record_index < records_in_block; record_index++) {
+            if (records[record_index].TypeVal == TYPEVAL_INVALIDO) {
+                // encontrada posição livre
+                return -1;
+            } else {
+                if (strcmp(records[record_index].name, replaced_record) == 0) {
+                    // encontrado registro com mesmo nome
+                    break;
+                }
+            }
+        }
+        if (record_index != records_in_block) {
+            // Índice livre encontrado
+            break;
+        }
+    }
+    // if (record_index != records_in_block) {
+    //     records[record_index] = file_record;
+    //     write_records_on_block(id_block, records);
+    //     return 0;
+    // }
+    return -1;
+}
+
+int replace_record_in_inode(struct t2fs_inode *dir_inode, char *replaced_record, struct t2fs_record new_record)
+{
+    if (replace_record_in_index_array(dir_inode->dataPtr, 10, replaced_record, new_record) == 0) {
+        return 0;
+    }
+}
+
+int pop_last_record_from_inode(struct t2fs_inode *dir_inode, struct t2fs_record *last_record)
+{}
+
+int remove_record_from_inode(struct t2fs_inode *dir_inode, char *name)
+{
+    int ptrs_in_block = get_num_indices_in_block();
+    DWORD singleInd[ptrs_in_block];
+    DWORD doubleInd[ptrs_in_block];
+    int i;
+    struct t2fs_record record_to_remove;
+    struct t2fs_record last_record;
+
+    if (find_record_in_inode(*dir_inode, name, &record_to_remove) == -1) {
+        printf("remove_record_from_inode: `%s` não foi encontrado", name);
+        return -1;
+    }
+
+    pop_last_record_from_inode(dir_inode, &last_record);
+
+    if (strcmp(last_record.name, record_to_remove.name) == 0) {
+        // record era o ultimo
+        return 0;
+    }
+
+    return replace_record_in_inode(dir_inode, name, last_record);
 }
 
 void print_record(struct t2fs_record record)
@@ -997,6 +1072,11 @@ int allocate_block(bitmap_type type)
     return new_id;
 }
 
+int free_block(int id, bitmap_type type)
+{
+    return set_on_bitmap(id, 0, type, superBloco);
+}
+
 int allocate_block_on_inode(struct t2fs_inode *inode)
 {
     int i;
@@ -1289,46 +1369,68 @@ int mkdir2(char *pathname)
 
 int rmdir2(char *pathname)
 {
+    struct t2fs_record records[get_records_in_block()];
+
     checkSuperBloco();
-
-    /* if (!is_path_consistent(pathname)) { */
-    /*     printf("Caminho passado nao e consistente\n"); */
-    /*     return -1; */
-    /* } */
-
-    /* char* dirname = get_string_after_bar(pathname); */
-    /* chdir2(pathname);                   // Muda para o pathname */
-    /* chdir2_simple(&current_path, ".."); // Retorna para o diretorio pai */
-
-    /* int inode_indices = current_path.current->record.i_node; // Pega inode do diretorio pai */
-    /* DWORD *indices = get_indices(inode_indices); */
-    int blocks = 0;
-    struct t2fs_inode inode;
-    if ((get_bitmap_state(4, INODE, superBloco)) == 0) {
-        printf("nao estou sendo utilizado\n");
-        inode = read_i_node(4);
-        initialize_inode(&inode);
-    }
-    int i;
-    for (i = 0; i < 268; i++) {
-        if (allocate_block_on_inode(&inode) == 0) {
-            printf("allocated 1 block\n");
-            blocks++;
-        }
+    if (!is_path_consistent(pathname)) {
+        printf("Caminho passado nao e consistente\n");
+        return -1;
     }
 
-    printf("blocks allocated on inode: %d\n", blocks);
-    print_inode(inode);
+    PATH path;
+    memset(&path, 0, sizeof(PATH));
+
+    // allows relative pathnames
+    copy_path(&path, &current_path);
+
+    if (chdir2_generic(&path, pathname) != 0) {
+        return -1;
+    }
+
+    struct t2fs_inode inode = read_i_node(path.current->record.i_node);
+
+    if (inode.dataPtr[0] == INVALID_POINTER) {
+        printf("rmdir2: Diretorio nao tem records.\n");
+        return -1;
+    }
+
+    read_records(inode.dataPtr[0], records);
+
+    if (strcmp(records[0].name, ".") != 0) {
+        printf("rmdir2: Diretorio nao tem self_record na posicao 0.\n");
+        return -1;
+    }
+
+    if (strcmp(records[1].name, "..") != 0) {
+        printf("rmdir2: Diretorio nao tem self_record na posicao 1.\n");
+        return -1;
+    }
+
+    if (records[2].TypeVal != TYPEVAL_INVALIDO) {
+        printf("rmdir2: Diretorio nao esta vazio.\n");
+        return -1;
+    }
+
+    free_block(inode.dataPtr[0], BLOCK);
+
+    inode = read_i_node(path.current->previous->record.i_node);
+    remove_record_from_inode(&inode, path.current->record.name);
+
+    write_inode(path.current->previous->record.i_node, &inode);
+
+    delete_inode(path.current->record.i_node);
+
     return 0;
 }
 
 DIR2 opendir2(char *pathname)
 {
+    checkSuperBloco();
     if (!is_path_consistent(pathname)) {
         printf("ERRO: caminho inconsistente\n");
         return -1;
     }
-    checkSuperBloco();
+
     PATH path;
     memset(&path, 0, sizeof(PATH));
 
