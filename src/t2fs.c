@@ -976,6 +976,8 @@ int write2(FILE2 handle, char *buffer, int size)
     printf("blocks_to_read: %d\n", blocks_to_read);
 
     if (file->position == (unsigned int) -1) {
+        int id = get_last_abstract_block_from_inode(file->inode);
+        int position = id * superBloco.BlockSize;
 
     }
     int i;
