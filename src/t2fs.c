@@ -823,7 +823,7 @@ int read2(FILE2 handle, char *buffer, int size)
     unsigned int first_block = file->position / superBloco.BlockSize;
     unsigned int blocks_to_read = ((file->position + size) / superBloco.BlockSize) + 1;
     unsigned int b;
-    unsigned int last_position = get_position_eof(file);
+    unsigned int last_position = file->record->bytesFileSize;
 
     if ((file->position + size) > last_position) {
         printf("ERRO: Tentando ler apos final do arquivo\n");
@@ -842,18 +842,22 @@ int read2(FILE2 handle, char *buffer, int size)
             for (i = 0; i < superBloco.BlockSize-1; i++) {
                 buffer[i + last_i] = buf[i];
                 bytes_read++;
+                file->position++;
             }
         } else {                         // Se for o ultimo bloco
             while (bytes_read != size) {
-                buffer[bytes_read + last_i] = buf[bytes_read];
-                bytes_read++;
+                if (file->position < last_position) { // Se a posicao for menor que o tamanho do arquivo.
+                    buffer[bytes_read] = buf[i];
+                    bytes_read++;
+                    i++;
+                    file->position++;
+                }
             }
         }
-        last_i = i;
+        last_i += i;
     }
 
-    buffer[size-1] = '\0';
-    return 0;
+    return bytes_read;
 }
 
 /**
@@ -1091,17 +1095,6 @@ int get_last_abstract_block_from_inode(struct t2fs_inode *inode)
     return i-1;
 }
 
-int get_position_eof(OPEN_FILE *file)
-{
-    return file->record->bytesFileSize;
-}
-
-int set_position_eof(OPEN_FILE *file)
-{
-    file->position = file->record->bytesFileSize;
-    return 0;
-}
-
 /**
  *  Funcao que dado o handle do arquivo, escreve no mesmo o conteudo
  *  do buffer.
@@ -1114,9 +1107,6 @@ int write2(FILE2 handle, char *buffer, int size)
     unsigned int first_block_id = file->position / superBloco.BlockSize;
     int          blocks_to_read = (((file->position + size) - 1) / superBloco.BlockSize) + 1;
     char         to_write[blocks_to_read][superBloco.BlockSize];
-
-    printf("block_size: %d\n", superBloco.BlockSize);
-    printf("blocks_to_read: %d\n", blocks_to_read);
 
     int b;
     for (b = 0; b < blocks_to_read; b++) {
@@ -1177,7 +1167,7 @@ int seek2(FILE2 handle, unsigned int offset)
     OPEN_FILE *file = get_file_from_list(handle, FILE_TYPE);
 
     if (offset == (unsigned int) -1) {
-        set_position_eof(file);
+        file->position = file->record->bytesFileSize;
         return 0;
     }
 
