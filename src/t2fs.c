@@ -51,6 +51,7 @@ void checkSuperBloco();
 int allocate_block(bitmap_type type);
 void init_indices_block(int id_block);
 void init_data_block(int id_block);
+void init_records_block(int id_block);
 
 void print_record(struct t2fs_record record);
 OPEN_FILE* get_file_from_list(int handle, file_type type);
@@ -199,7 +200,7 @@ int add_record_to_index_array(DWORD *dataPtr, int dataPtrLength, struct t2fs_rec
         id_block = dataPtr[dataPtr_index];
         if (id_block == 0x0FFFFFFFF) {
             id_block = allocate_block(BLOCK);
-            init_data_block(id_block);
+            init_records_block(id_block);
             break;
         }
         read_records(id_block, records);
@@ -875,6 +876,19 @@ void init_data_block(int id_block)
 {
     char buffer[superBloco.BlockSize];
     DWORD zero = 0x0;
+
+    int i;
+    for (i = 0; i < get_num_indices_in_block(); i++) {
+        memcpy(buffer+(i*sizeof(DWORD)), (char*)&zero, sizeof(DWORD));
+    }
+
+    write_block(id_block, buffer, superBloco);
+}
+
+void init_records_block(int id_block)
+{
+    char buffer[superBloco.BlockSize];
+    DWORD zero = -1;
 
     int i;
     for (i = 0; i < get_num_indices_in_block(); i++) {
