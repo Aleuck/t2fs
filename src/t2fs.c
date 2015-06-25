@@ -1113,6 +1113,7 @@ int write2(FILE2 handle, char *buffer, int size)
                 printf("ERRO: Falha ao tentar alocar bloco a arquivo.\n");
                 return -1;
             }
+            file->record->blocksFileSize++;
             real_block_id = get_block_id_from_inode(first_block_id+b, file->inode);
         }
         // Le o bloco necessario para a escrita
@@ -1130,12 +1131,18 @@ int write2(FILE2 handle, char *buffer, int size)
                 to_write[b][j] = buffer[bytes_written];
                 bytes_written++;
                 file->position++;
+                file->record->bytesFileSize++; // Atualiza tamanho em bytes do arquivo.
             }
             to_write[b][superBloco.BlockSize-1] = '\0';  // Força fim de linha
+            file->record->bytesFileSize++; // Atualiza tamanho em bytes do arquivo.
         }
     }
+    int i;
     for (b = 0; b < blocks_to_read; b++) {
-        printf("bloco %d:\n%s\n", b, to_write[b]);
+        for (i = 0; i < superBloco.BlockSize-1; i++) {
+            printf("%c", to_write[b][i]);
+        }
+        printf("\n");
     }
     for (b = 0; b < blocks_to_read; b++) {
         int id = get_block_id_from_inode(first_block_id + b, file->inode);
