@@ -1419,18 +1419,27 @@ int chdir2_simple(PATH *current_path, char *dirname)
 
 int chdir2_generic (PATH *current_path, char *pathname)
 {
+
     if(!is_path_consistent(pathname)) {
         return -1;
     }
     if (pathname[0] == '/') {
         chdir2_root(current_path);
     }
-    char *dirname = dirname = strtok(pathname, "/");
+    char *path;
+    int pathlength = strlen(pathname) + 1;
+    path = malloc(sizeof(char)*pathlength);
+    strncpy(path, pathname, pathlength);
+    char *dirname;
+    dirname = strtok(path, "/");
     while (dirname != NULL) {
         if (chdir2_simple(current_path, dirname) != 0) {
+            free(path);
             return -1;
         }
+        dirname = strtok(NULL, "/");
     }
+    free(path);
     return 0;
 }
 

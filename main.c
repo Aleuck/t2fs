@@ -14,7 +14,7 @@ int main(int argc, char *argv[])
 {
     chdir2("/");
     DIR2 handler = mkdir2("/bla");
-    chdir2("/blah");
+    chdir2("/bla");
     //DIR2 handler2 = mkdir2("/bla/blah");
     DIR2 root = opendir2("/");
     //mkdir2("bla/blah");
