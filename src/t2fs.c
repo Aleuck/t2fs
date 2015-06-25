@@ -1005,7 +1005,6 @@ int write2(FILE2 handle, char *buffer, int size)
     printf("block_size: %d\n", superBloco.BlockSize);
     printf("blocks_to_read: %d\n", blocks_to_read);
 
-
     int i;
     for (i = 0; i < blocks_to_read; i++) {
         int real_block_id = get_block_id_from_inode(first_block_id+i, file->inode);
@@ -1081,14 +1080,18 @@ int write2(FILE2 handle, char *buffer, int size)
 
 int seek2(FILE2 handle, unsigned int offset)
 {
+    // TODO: Checar por erros
     checkSuperBloco();
 
     OPEN_FILE *file = get_file_from_list(handle, FILE_TYPE);
+
     if (offset == (unsigned int) -1) {
-        file->position = (unsigned int) -1;         // posicao -1 indica final do arquivo.
-    } else {
-        file->position = offset;    //
+        set_position_eof(file);
+        return 0;
     }
+
+    file->position = offset;
+
     return 0;
 }
 
