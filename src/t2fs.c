@@ -864,6 +864,19 @@ void init_indices_block(int id_block)
     write_block(id_block, buffer, superBloco);
 }
 
+void init_data_block(int id_block)
+{
+    char buffer[superBloco.BlockSize];
+    DWORD zero = 0x0;
+
+    int i;
+    for (i = 0; i < get_num_indices_in_block(); i++) {
+        memcpy(buffer+(i*sizeof(DWORD)), (char*)&zero, sizeof(DWORD));
+    }
+
+    write_block(id_block, buffer, superBloco);
+}
+
 void print_indices(int id_block)
 {
     DWORD *indices = get_indices(id_block);
@@ -902,8 +915,8 @@ int allocate_block_on_inode(struct t2fs_inode *inode)
     for (i = 0; i < 10; i++) {
         if (inode->dataPtr[i] == INVALID_POINTER) {
             new_id = get_free_bit_on_bitmap(BLOCK, superBloco);
-            inode->dataPtr[i] = new_id;
             set_on_bitmap(new_id, 1, BLOCK, superBloco);
+            inode->dataPtr[i] = new_id;
             printf("Bloco alocado no indice %d com o bloco %d\n", i, new_id);
             return 0;
         }
