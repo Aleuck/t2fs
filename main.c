@@ -41,13 +41,19 @@ int main(int argc, char *argv[])
     /* seek2(handleArq, 0); */
     /* read2(handleArq, buffer_read2, size); */
     /* printf("Arquivo lido 2: \n%s\n", buffer_read2); */
+    rmdir2("bla");
+    /* char path[100]; */
+    /* chdir2("/"); */
+    /* DIR2 handler = mkdir2("/bla"); */
+    /* chdir2("bla"); */
+    /* DIR2 handler2 = mkdir2("/bla/blah"); */
 
-    chdir2("/");
-    DIR2 handler = mkdir2("/bla");
-    chdir2("/bla");
-    DIR2 handler2 = mkdir2("/bla/blah");
-    /* DIR2 root = opendir2("/"); */
-    /* //mkdir2("bla/blah"); */
-    //ls(handle);
+    /* getcwd2(path, 100); */
+    /* printf("%s\n", path); */
+
+    /* chdir2("/bla/blah"); */
+
+    /* getcwd2(path, 100); */
+    /* printf("%s\n", path); */
     return 0;
 }

@@ -199,12 +199,11 @@ int add_record_to_index_array(DWORD *dataPtr, int dataPtrLength, struct t2fs_rec
 
     for (dataPtr_index = 0; dataPtr_index < dataPtrLength; dataPtr_index++) {
         id_block = dataPtr[dataPtr_index];
-        if (id_block == 0x0FFFFFFFF) {
+        if (id_block == INVALID_POINTER) {
             id_block = allocate_block(BLOCK);
             init_records_block(id_block);
-            break;
+            dataPtr[dataPtr_index] = id_block;
         }
-        printf("read recods from block %d\n", id_block);
         read_records(id_block, records);
         for (record_index = 0; record_index < records_in_block; record_index++) {
             if (records[record_index].TypeVal == TYPEVAL_INVALIDO) {
@@ -219,14 +218,13 @@ int add_record_to_index_array(DWORD *dataPtr, int dataPtrLength, struct t2fs_rec
     }
     if (record_index != records_in_block) {
         records[record_index] = file_record;
-        printf("write recods from block %d\n", id_block);
         write_records_on_block(id_block, records);
         return 0;
     }
     return -1;
 }
 
-int add_record_to_inode(struct t2fs_inode dir_inode, struct t2fs_record file_record)
+int add_record_to_inode(struct t2fs_inode *dir_inode, struct t2fs_record file_record)
 {
     int ptrs_in_block = get_num_indices_in_block();
     DWORD singleInd[ptrs_in_block];
@@ -234,29 +232,36 @@ int add_record_to_inode(struct t2fs_inode dir_inode, struct t2fs_record file_rec
     int i;
 
     // tenta inserir nos ponteiros diretos
-    if (add_record_to_index_array(dir_inode.dataPtr, 10, file_record) == 0) {
+    if (add_record_to_index_array(dir_inode->dataPtr, 10, file_record) == 0) {
         return 0;
     }
 
     // tenta usar indireção simples
-    if (dir_inode.singleIndPtr == 0x0FFFFFFFF) {
-        dir_inode.singleIndPtr = allocate_block(BLOCK);
-        init_indices_block(dir_inode.singleIndPtr);
+    if (dir_inode->singleIndPtr == INVALID_POINTER) {
+        dir_inode->singleIndPtr = allocate_block(BLOCK);
+        init_indices_block(dir_inode->singleIndPtr);
     }
-    read_block(dir_inode.singleIndPtr, (char*) singleInd, superBloco);
+    read_block(dir_inode->singleIndPtr, (char*) singleInd, superBloco);
     if (add_record_to_index_array(singleInd, ptrs_in_block, file_record) == 0) {
+        write_block(dir_inode->singleIndPtr, (char*) singleInd, superBloco);
         return 0;
     }
 
     // tenta usar indireção dupla
-    if (dir_inode.doubleIndPtr == 0x0FFFFFFFF) {
-        dir_inode.doubleIndPtr = allocate_block(BLOCK);
-        init_indices_block(dir_inode.doubleIndPtr);
+    if (dir_inode->doubleIndPtr == INVALID_POINTER) {
+        dir_inode->doubleIndPtr = allocate_block(BLOCK);
+        init_indices_block(dir_inode->doubleIndPtr);
     }
-    read_block(dir_inode.doubleIndPtr, (char*) doubleInd, superBloco);
+    read_block(dir_inode->doubleIndPtr, (char*) doubleInd, superBloco);
     for (i = 0; i < ptrs_in_block; i++) {
+        if (doubleInd[i] == INVALID_POINTER) {
+            doubleInd[i] = allocate_block(BLOCK);
+            init_indices_block(doubleInd[i]);
+            write_block(dir_inode->doubleIndPtr, (char*) doubleInd, superBloco);
+        }
         read_block(doubleInd[i], (char*) singleInd, superBloco);
         if (add_record_to_index_array(singleInd, ptrs_in_block, file_record) == 0) {
+            write_block(doubleInd[i], (char*) singleInd, superBloco);
             return 0;
         }
     }
@@ -361,7 +366,6 @@ int write_inode(int id_inode, struct t2fs_inode *inode)
 
     write_block(superBloco.InodeBlock + block_relative, buffer, superBloco);
     set_on_bitmap(id_inode, 1, INODE, superBloco);
-
     return 0;
 }
 
@@ -669,8 +673,11 @@ FILE2 create2(char *filename)
     write_inode(idx, new_file_inode);
     free(new_file_inode);
 
+    struct t2fs_inode current_dir = read_i_node(current_path.current->record.i_node);
+
     //add_record_to_inode(creating_inode, *new_file_record);
-    add_record_to_inode(current_dir, *new_file_record);
+    add_record_to_inode(&current_dir, *new_file_record);
+    write_inode(current_path.current->record.i_node, &current_dir);
 
     return open2(filename);
 }
@@ -942,30 +949,32 @@ int allocate_block(bitmap_type type)
 
 int allocate_block_on_inode(struct t2fs_inode *inode)
 {
-    int new_id;
-
     int i;
     for (i = 0; i < 10; i++) {
         if (inode->dataPtr[i] == INVALID_POINTER) {
-            new_id = get_free_bit_on_bitmap(BLOCK, superBloco);
-            set_on_bitmap(new_id, 1, BLOCK, superBloco);
-            inode->dataPtr[i] = new_id;
-            printf("Bloco alocado no indice %d com o bloco %d\n", i, new_id);
+            int new_ind = allocate_block(BLOCK);
+            inode->dataPtr[i] = new_ind;
+            if (new_ind == -1) {
+                return -1;
+            }
             return 0;
         }
     }
+
     if (inode->singleIndPtr == INVALID_POINTER) { // Aloca bloco de indices
-        printf("Alocando bloco de indices\n");
-
-        new_id = get_free_bit_on_bitmap(BLOCK, superBloco);
-        inode->singleIndPtr = new_id;
-
+        int new_ind = allocate_block(BLOCK);
+        inode->singleIndPtr = new_ind;
+        if (new_ind == -1) {
+            return -1;
+        }
         init_indices_block(inode->singleIndPtr);
-        set_on_bitmap(inode->singleIndPtr, 1, BLOCK, superBloco);
 
         DWORD *indices = get_indices(inode->singleIndPtr);
-        indices[0] = get_free_bit_on_bitmap(BLOCK, superBloco);
-        set_on_bitmap(indices[0], 1, BLOCK, superBloco);
+        new_ind = allocate_block(BLOCK);
+        indices[0] = new_ind;
+        if (new_ind == -1) {
+            return -1;
+        }
 
         write_indices(inode->singleIndPtr, indices);
         free(indices);
@@ -976,25 +985,51 @@ int allocate_block_on_inode(struct t2fs_inode *inode)
     //print_indices(inode->singleIndPtr);
     for (i = 0; i < get_num_indices_in_block(); i++) {
         if (indices[i] == INVALID_POINTER) {
-            new_id = get_free_bit_on_bitmap(BLOCK, superBloco);
-            indices[i] = new_id;
-
-            set_on_bitmap(new_id, 1, BLOCK, superBloco);
+            int new_ind = allocate_block(BLOCK);
+            indices[i] = new_ind;
+            if (new_ind == -1) {
+                return -1;
+            }
             write_indices(inode->singleIndPtr, indices);
             free(indices);
             return 0;
         }
     }
     // Nenhum indice livre em single ind.
-    printf("\nAGORA TEM QUE FAZER O DUPLO ENDERECO\n");
-    //TODO: TERMINAR DUPLA INDIRECAO
-    //if (inode->doubleIndPtr == INVALID_POINTER) {
-    //    new_id = get_free_bit_on_bitmap(BLOCK, superBloco);
-    //    inode->doubleIndPtr = new_id;
-    //    set_on_bitmap(inode->doubleIndPtr, 1, BLOCK, superBloco);
-    //    init_indices_block(inode->doubleIndPtr);
-    //}
-    return 0;
+    if (inode->doubleIndPtr == INVALID_POINTER) {
+        int new_ind = allocate_block(BLOCK);
+        inode->doubleIndPtr = new_ind;
+        if (new_ind == -1) {
+            return -1;
+        }
+        init_indices_block(inode->doubleIndPtr);
+    }
+    DWORD *double_indices = get_indices(inode->doubleIndPtr);
+    for (i = 0; i < get_num_indices_in_block(); i++) {
+        if (double_indices[i] == INVALID_POINTER) {
+            int new_ind = allocate_block(BLOCK);
+            double_indices[i] = new_ind;
+            if (new_ind == -1) {
+                return -1;
+            }
+            init_indices_block(double_indices[i]);
+        }
+        int j;
+        DWORD *sing_indices = get_indices(double_indices[i]);
+        for (j = 0; j < get_num_indices_in_block(); j++) {
+            if (sing_indices[j] == INVALID_POINTER) {
+                int new_ind = allocate_block(BLOCK);
+                sing_indices[j] = new_ind;
+                if (new_ind == -1) {
+                    return -1;
+                }
+                write_indices(double_indices[i], sing_indices);
+                free(sing_indices);
+                return 0;
+            }
+        }
+    }
+    return -1;
 }
 
 int get_last_abstract_block_from_inode(struct t2fs_inode *inode)
@@ -1139,17 +1174,14 @@ int mkdir2(char *pathname)
     } else {
         strncpy(name, path, sizeof(name));
     }
-    printf("dirname: %s\n", name);
+    //printf("dirname: %s\n", name);
 
 
     struct t2fs_record *new_directory_record;
     struct t2fs_inode *new_directory_inode;
 
     int idx = get_free_bit_on_bitmap(INODE, superBloco);
-    //printf("Primeiro indice livre de inode e %d", idx);
-
-    // TODO: No momento só guarda no diretório corrente,
-    //       não permite passagem do caminho completo.
+    //printf("Primeiro indice livre de inode e %d\n", idx);
 
     // Cria o record para o diretorio
     new_directory_record = malloc(sizeof *new_directory_record);
@@ -1163,15 +1195,20 @@ int mkdir2(char *pathname)
     // Cria inode para arquivo
     new_directory_inode = malloc(sizeof *new_directory_inode);
     initialize_inode(new_directory_inode);
-    write_inode(idx, new_directory_inode);
 
+    //printf("*add new dir record to parents inode\n");
     // get inode where the dir is being created
     struct t2fs_inode current_dir;
     current_dir = read_i_node(dest_path.current->record.i_node);
+    if (add_record_to_inode(&current_dir, *new_directory_record) != 0) {
+        printf("ERRO\n");
+        return -1;
+    }
+    write_inode(dest_path.current->record.i_node, &current_dir);
 
-    add_record_to_inode(current_dir, *new_directory_record);
     free(new_directory_record);
 
+    //printf("*add record to self `.`\n");
     // Cria o record para o self '.'
     struct t2fs_record *self_record;
     self_record = malloc(sizeof *self_record);
@@ -1179,22 +1216,29 @@ int mkdir2(char *pathname)
     self_record->i_node         = idx;
     self_record->blocksFileSize = 1;         // ocupa 1 inode quando criado
     self_record->bytesFileSize  = RECORD_SIZE * 2;        // ocupa dois records
-    memcpy(self_record->name, ".\n", 2);
-    add_record_to_inode(*new_directory_inode, *self_record);
+    memcpy(self_record->name, ".\0", 2);
+    if (add_record_to_inode(new_directory_inode, *self_record) != 0) {
+        printf("ERRO\n");
+        return -1;
+    }
     free(self_record);
 
+    //printf("*add record to self `..`\n");
     // Cria o record para o pai '..'
     struct t2fs_record *father_record;
-    int idx_pai = 0; //TODO pai nao eh sempre rais
+    int idx_pai = dest_path.current->record.i_node;
     father_record = malloc(sizeof *father_record);
     father_record->TypeVal        = TYPEVAL_DIRETORIO;
     father_record->i_node         = idx_pai;
     father_record->blocksFileSize = -1;         // TODO tamanho de blocos do dir pai?
     father_record->bytesFileSize  = -1;        //  TODO tamanho do dir pai? imagina atualizar tudo isso
-    memcpy(father_record->name, "..\n", 3);
-    add_record_to_inode(*new_directory_inode, *father_record);
+    memcpy(father_record->name, "..\0", 3);
+    add_record_to_inode(new_directory_inode, *father_record);
+
+
     free(father_record);
 
+    write_inode(idx, new_directory_inode);
     free(new_directory_inode);
     free(path);
     return opendir2(pathname);
@@ -1204,17 +1248,34 @@ int rmdir2(char *pathname)
 {
     checkSuperBloco();
 
-    if (!is_path_consistent(pathname)) {
-        printf("Caminho passado nao e consistente\n");
-        return -1;
+    /* if (!is_path_consistent(pathname)) { */
+    /*     printf("Caminho passado nao e consistente\n"); */
+    /*     return -1; */
+    /* } */
+
+    /* char* dirname = get_string_after_bar(pathname); */
+    /* chdir2(pathname);                   // Muda para o pathname */
+    /* chdir2_simple(&current_path, ".."); // Retorna para o diretorio pai */
+
+    /* int inode_indices = current_path.current->record.i_node; // Pega inode do diretorio pai */
+    /* DWORD *indices = get_indices(inode_indices); */
+    int blocks = 0;
+    struct t2fs_inode inode;
+    if ((get_bitmap_state(4, INODE, superBloco)) == 0) {
+        printf("nao estou sendo utilizado\n");
+        inode = read_i_node(4);
+        initialize_inode(&inode);
+    }
+    int i;
+    for (i = 0; i < 268; i++) {
+        if (allocate_block_on_inode(&inode) == 0) {
+            printf("allocated 1 block\n");
+            blocks++;
+        }
     }
 
-    char* dirname = get_string_after_bar(pathname);
-    chdir2(pathname);                   // Muda para o pathname
-    chdir2_simple(&current_path, ".."); // Retorna para o diretorio pai
-
-    int inode_indices = current_path.current->record.i_node; // Pega inode do diretorio pai
-    DWORD *indices = get_indices(inode_indices);
+    printf("blocks allocated on inode: %d\n", blocks);
+    print_inode(inode);
     return 0;
 }
 
@@ -1413,6 +1474,7 @@ int chdir2_simple(PATH *current_path, char *dirname)
         current_path->current = dir;
         return 0;
     }
+
     printf("ERRO: Diretorio `%s` nao encontrado.\n", dirname);
     return -1;
 }
@@ -1453,20 +1515,11 @@ int getcwd2_helper(PATH_NODE *path_node, char *pathname, int size) {
     int index = 0;
     if (path_node->previous) {
         index = getcwd2_helper(path_node->previous, pathname, size);
-    } else {
-        if (size > 1) {
-            pathname[0] = '/';
-            pathname[1] = '\0';
-            return 1;
-        }
-        if (size == 1) {
-            pathname[0] = '\0';
-            return 0;
-        }
+        pathname[index++] = '/';
     }
     int i = 0;
     while (path_node->record.name[i] != '\0' && (i + index + 1) < size) {
-        pathname[i] = path_node->record.name[i + index];
+        pathname[i + index] = path_node->record.name[i];
         i++;
     }
     pathname[i + index] = '\0';
