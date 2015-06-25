@@ -823,13 +823,10 @@ int read2(FILE2 handle, char *buffer, int size)
     unsigned int first_block = file->position / superBloco.BlockSize;
     unsigned int blocks_to_read = ((file->position + size) / superBloco.BlockSize) + 1;
     unsigned int b;
-    printf("POSITION: %d\n", file->position);
     unsigned int last_position = get_position_eof(file);
-    printf("LAST_POSITION: %d\n", last_position);
 
     if ((file->position + size) > last_position) {
         printf("ERRO: Tentando ler apos final do arquivo\n");
-        return -1;
     }
     // Le todos os blocos que fazem parte de buffer
     int last_i = 0;
@@ -1096,48 +1093,13 @@ int get_last_abstract_block_from_inode(struct t2fs_inode *inode)
 
 int get_position_eof(OPEN_FILE *file)
 {
-    int id = get_last_abstract_block_from_inode(file->inode);
-    printf("id inode: %d\n", id);
-    int position = id * superBloco.BlockSize;
-    char buffer[superBloco.BlockSize];
-    read_block(id, buffer, superBloco);
-
-    int i = 0;
-    while (buffer[i] != '\0') {
-        i++;
-    }
-    return position+i;
+    return file->record->bytesFileSize;
 }
 
 int set_position_eof(OPEN_FILE *file)
 {
-    int id = get_last_abstract_block_from_inode(file->inode);
-    int position = id * superBloco.BlockSize;
-
-    char buffer[superBloco.BlockSize];
-    read_block(id, buffer, superBloco);
-
-    int i = 0;
-    while (buffer[i] != '\0') {
-        i++;
-    }
-
-    file->position = position + i;
-
+    file->position = file->record->bytesFileSize;
     return 0;
-}
-
-int get_eof_position(int id_block)
-{
-    char buffer[superBloco.BlockSize];
-    read_block(id_block, buffer, superBloco);
-
-    unsigned int i = 0;
-    while (buffer[i] != '\0') {
-        i++;
-    }
-
-    return i;
 }
 
 /**
@@ -1182,12 +1144,13 @@ int write2(FILE2 handle, char *buffer, int size)
                 to_write[b][j] = buffer[bytes_written];
                 bytes_written++;
                 file->position++;
-                printf("position: %d\n", file->position);
-                file->record->bytesFileSize++; // Atualiza tamanho em bytes do arquivo.
+                if (file->position > file->record->bytesFileSize) {
+                    file->record->bytesFileSize++; // Atualiza tamanho em bytes do arquivo.
+                }
             }
-            to_write[b][superBloco.BlockSize-1] = '\0';  // Força fim de linha
-            file->record->bytesFileSize++; // Atualiza tamanho em bytes do arquivo.
         }
+        to_write[b][superBloco.BlockSize-1] = '\0';  // Força fim de linha
+        file->position++;
     }
     int i;
     for (b = 0; b < blocks_to_read; b++) {
