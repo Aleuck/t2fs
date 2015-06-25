@@ -887,6 +887,13 @@ int write_indices(int id_block, DWORD *indices)
     return 0;
 }
 
+int allocate_block(bitmap_type type)
+{
+    int new_id = get_free_bit_on_bitmap(type, superBloco);
+    set_on_bitmap(new_id, 1, type, superBloco);
+    return new_id;
+}
+
 int allocate_block_on_inode(struct t2fs_inode *inode)
 {
     int new_id;
@@ -944,6 +951,15 @@ int allocate_block_on_inode(struct t2fs_inode *inode)
     return 0;
 }
 
+int get_last_abstract_block_from_inode(struct t2fs_inode *inode)
+{
+    int i = 0;
+    while (get_block_id_from_inode(i, inode) != -1) {
+        i++;
+    }
+    return i;
+}
+
 /**
  *  Funcao que dado o handle do arquivo, escreve no mesmo o conteudo
  *  do buffer.
@@ -952,13 +968,16 @@ int write2(FILE2 handle, char *buffer, int size)
 {
     checkSuperBloco();
 
-    OPEN_FILE *file   = get_file_from_list(handle, FILE_TYPE);
-    unsigned int first_block_id    = file->position / superBloco.BlockSize;
-    int blocks_to_read = (((file->position + size) - 1) / superBloco.BlockSize) + 1;
-    char to_write[blocks_to_read][superBloco.BlockSize];
+    OPEN_FILE    *file          = get_file_from_list(handle, FILE_TYPE);
+    unsigned int first_block_id = file->position / superBloco.BlockSize;
+    int          blocks_to_read = (((file->position + size) - 1) / superBloco.BlockSize) + 1;
+    char         to_write[superBloco.BlockSize];
     printf("block_size: %d\n", superBloco.BlockSize);
     printf("blocks_to_read: %d\n", blocks_to_read);
 
+    if (file->position == (unsigned int) -1) {
+
+    }
     int i;
     for (i = 0; i < blocks_to_read; i++) {
         int real_block_id = get_block_id_from_inode(first_block_id+i, file->inode);
@@ -969,66 +988,67 @@ int write2(FILE2 handle, char *buffer, int size)
             }
             real_block_id = get_block_id_from_inode(first_block_id+i, file->inode);
         }
-        read_block(real_block_id, &to_write[i][0], superBloco);
+        read_block(real_block_id, to_write, superBloco);
+
     }
-    // Escreve buffer passado
-    unsigned int j = 0;
-    int b = 0;
-    int bytes_written = 0;
-    i = 0;
-    for (b = 0; b < blocks_to_read; b++) {
-        for (j = 0; j < superBloco.BlockSize; j++) {
-            if (bytes_written == (size - 1)) {
-                to_write[b][j] = buffer[bytes_written];
-                break;
-            }
-            if ((j + (b*superBloco.BlockSize)) >= file->position) {
-                to_write[b][j] = buffer[bytes_written];
-                bytes_written++;
-                file->position++;
-            }
-        }
-    }
-    printf("position: %u\n", file->position);
-    for (b = 0; b < blocks_to_read; b++) {
-        char buf[superBloco.BlockSize];
-        strncpy(buf, &to_write[b][0], superBloco.BlockSize);
-        printf("bloco %d:\n", b);
-        for (j = 0; j < superBloco.BlockSize; j++) {
-            printf("%c", buf[j]);
-        }
-        printf("\n");
-    }
+    /* // Escreve buffer passado */
+    /* unsigned int j = 0; */
+    /* int b = 0; */
+    /* int bytes_written = 0; */
+    /* i = 0; */
+    /* for (b = 0; b < blocks_to_read; b++) { */
+    /*     for (j = 0; j < superBloco.BlockSize; j++) { */
+    /*         if (bytes_written == (size - 1)) { */
+    /*             to_write[b][j] = buffer[bytes_written]; */
+    /*             break; */
+    /*         } */
+    /*         if ((j + (b*superBloco.BlockSize)) >= file->position) { */
+    /*             to_write[b][j] = buffer[bytes_written]; */
+    /*             bytes_written++; */
+    /*             file->position++; */
+    /*         } */
+    /*     } */
+    /* } */
+    /* printf("position: %u\n", file->position); */
+    /* for (b = 0; b < blocks_to_read; b++) { */
+    /*     char buf[superBloco.BlockSize]; */
+    /*     strncpy(buf, &to_write[b][0], superBloco.BlockSize); */
+    /*     printf("bloco %d:\n", b); */
+    /*     for (j = 0; j < superBloco.BlockSize; j++) { */
+    /*         printf("%c", buf[j]); */
+    /*     } */
+    /*     printf("\n"); */
+    /* } */
 
-    for (b = 0; b < blocks_to_read; b++) {
-        char buf[superBloco.BlockSize];
-        for (j = 0; j < superBloco.BlockSize; j++) {
-            buf[i] = to_write[b][i];
-        }
+    /* for (b = 0; b < blocks_to_read; b++) { */
+    /*     char buf[superBloco.BlockSize]; */
+    /*     for (j = 0; j < superBloco.BlockSize; j++) { */
+    /*         buf[i] = to_write[b][i]; */
+    /*     } */
 
-        int id_block = get_block_id_from_inode(first_block_id + b, file->inode);
-        printf("id do block: %d\n", id_block);
+    /*     int id_block = get_block_id_from_inode(first_block_id + b, file->inode); */
+    /*     printf("id do block: %d\n", id_block); */
 
-        write_block(id_block, buf, superBloco);
-    }
+    /*     write_block(id_block, buf, superBloco); */
+    /* } */
 
-    printf("\nFOI LIDO: \n");
-    for (b = 0; b < blocks_to_read; b++) {
-        char buf[superBloco.BlockSize];
-        int id_block = get_block_id_from_inode(first_block_id+b, file->inode);
-        printf("id do block %d\n", id_block);
-        read_block(id_block, buf, superBloco);
+    /* printf("\nFOI LIDO: \n"); */
+    /* for (b = 0; b < blocks_to_read; b++) { */
+    /*     char buf[superBloco.BlockSize]; */
+    /*     int id_block = get_block_id_from_inode(first_block_id+b, file->inode); */
+    /*     printf("id do block %d\n", id_block); */
+    /*     read_block(id_block, buf, superBloco); */
 
-        printf("bloco %d:\n", b);
-        printf("%s", buf);
-        printf("\n");
-    }
+    /*     printf("bloco %d:\n", b); */
+    /*     printf("%s", buf); */
+    /*     printf("\n"); */
+    /* } */
 
-    write_inode(file->id_inode, file->inode);
-    printf("Lendo Inode do Arquivo:\n");
-    struct t2fs_inode new_inode = read_i_node(file->id_inode);
-    print_inode(new_inode);
-    return 0;
+    /* write_inode(file->id_inode, file->inode); */
+    /* printf("Lendo Inode do Arquivo:\n"); */
+    /* struct t2fs_inode new_inode = read_i_node(file->id_inode); */
+    /* print_inode(new_inode); */
+    /* return 0; */
 }
 
 int seek2(FILE2 handle, unsigned int offset)
