@@ -16,8 +16,9 @@
 typedef enum {FILE_TYPE, DIR_TYPE} file_type;
 
 typedef struct open_file {
+    struct t2fs_record *record; // Adicona record a arquivo aberto
     struct t2fs_inode *inode;
-    unsigned int id_inode;
+    //unsigned int id_inode; // Remove, pois ja tem no *record
     unsigned int position;
     int handle;
     struct open_file *next;
