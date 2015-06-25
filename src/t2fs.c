@@ -712,21 +712,14 @@ FILE2 create2(char *filename)
 int delete2(char *filename)
 {
     checkSuperBloco();
-    struct t2fs_inode inode = read_i_node(0);
-    print_inode(inode);
-    // Escreve inode igual ao inode 0 no inode 1
-    write_inode(1, &inode);
+    struct t2fs_inode dir_inode = current_dir;
+    struct t2fs_record file_record;
 
-    struct t2fs_inode inode1 = read_i_node(1);
-    print_inode(inode1);
+    find_record_in_inode(dir_inode, filename, &file_record);
+    remove_record_from_inode(dir_inode, filename);
 
-    //printf("\n%d, %d\n", superBloco.InodeBlock, superBloco.FirstDataBlock);
-    //print_inode(*read_i_node(0));
-    //printf("\nBLOCKS\n");
-    //printf("inode: %d, block: %d\n", superBloco.InodeBlock, superBloco.FirstDataBlock);
-    //print_bitmap(BLOCK, superBloco);
-    //printf("\nINODES\n");
-    print_bitmap(INODE, superBloco);
+    delete_inode(file_record.i_node);
+
     return 0;
 }
 
