@@ -199,10 +199,10 @@ int add_record_to_index_array(DWORD *dataPtr, int dataPtrLength, struct t2fs_rec
 
     for (dataPtr_index = 0; dataPtr_index < dataPtrLength; dataPtr_index++) {
         id_block = dataPtr[dataPtr_index];
-        if (id_block == 0x0FFFFFFFF) {
+        if (id_block == INVALID_POINTER) {
             id_block = allocate_block(BLOCK);
             init_records_block(id_block);
-            break;
+            dataPtr[dataPtr_index] = id_block;
         }
         read_records(id_block, records);
         for (record_index = 0; record_index < records_in_block; record_index++) {
@@ -224,38 +224,44 @@ int add_record_to_index_array(DWORD *dataPtr, int dataPtrLength, struct t2fs_rec
     return -1;
 }
 
-int add_record_to_inode(struct t2fs_inode dir_inode, struct t2fs_record file_record)
+int add_record_to_inode(struct t2fs_inode *dir_inode, struct t2fs_record file_record)
 {
     int ptrs_in_block = get_num_indices_in_block();
     DWORD singleInd[ptrs_in_block];
     DWORD doubleInd[ptrs_in_block];
     int i;
 
-    printf("\n");
     // tenta inserir nos ponteiros diretos
-    if (add_record_to_index_array(dir_inode.dataPtr, 10, file_record) == 0) {
+    if (add_record_to_index_array(dir_inode->dataPtr, 10, file_record) == 0) {
         return 0;
     }
 
     // tenta usar indireção simples
-    if (dir_inode.singleIndPtr == 0x0FFFFFFFF) {
-        dir_inode.singleIndPtr = allocate_block(BLOCK);
-        init_indices_block(dir_inode.singleIndPtr);
+    if (dir_inode->singleIndPtr == INVALID_POINTER) {
+        dir_inode->singleIndPtr = allocate_block(BLOCK);
+        init_indices_block(dir_inode->singleIndPtr);
     }
-    read_block(dir_inode.singleIndPtr, (char*) singleInd, superBloco);
+    read_block(dir_inode->singleIndPtr, (char*) singleInd, superBloco);
     if (add_record_to_index_array(singleInd, ptrs_in_block, file_record) == 0) {
+        write_block(dir_inode->singleIndPtr, (char*) singleInd, superBloco);
         return 0;
     }
 
     // tenta usar indireção dupla
-    if (dir_inode.doubleIndPtr == 0x0FFFFFFFF) {
-        dir_inode.doubleIndPtr = allocate_block(BLOCK);
-        init_indices_block(dir_inode.doubleIndPtr);
+    if (dir_inode->doubleIndPtr == INVALID_POINTER) {
+        dir_inode->doubleIndPtr = allocate_block(BLOCK);
+        init_indices_block(dir_inode->doubleIndPtr);
     }
-    read_block(dir_inode.doubleIndPtr, (char*) doubleInd, superBloco);
+    read_block(dir_inode->doubleIndPtr, (char*) doubleInd, superBloco);
     for (i = 0; i < ptrs_in_block; i++) {
+        if (doubleInd[i] == INVALID_POINTER) {
+            doubleInd[i] = allocate_block(BLOCK);
+            init_indices_block(doubleInd[i]);
+            write_block(dir_inode->doubleIndPtr, (char*) doubleInd, superBloco);
+        }
         read_block(doubleInd[i], (char*) singleInd, superBloco);
         if (add_record_to_index_array(singleInd, ptrs_in_block, file_record) == 0) {
+            write_block(doubleInd[i], (char*) singleInd, superBloco);
             return 0;
         }
     }
@@ -667,8 +673,11 @@ FILE2 create2(char *filename)
     write_inode(idx, new_file_inode);
     free(new_file_inode);
 
+    struct t2fs_inode current_dir = read_i_node(current_path.current->record.i_node);
+
     //add_record_to_inode(creating_inode, *new_file_record);
-    add_record_to_inode(current_dir, *new_file_record);
+    add_record_to_inode(&current_dir, *new_file_record);
+    write_inode(current_path.current->record.i_node, &current_dir);
 
     return open2(filename);
 }
@@ -1163,11 +1172,13 @@ int mkdir2(char *pathname)
     // get inode where the dir is being created
     struct t2fs_inode current_dir;
     current_dir = read_i_node(dest_path.current->record.i_node);
-    add_record_to_inode(current_dir, *new_directory_record);
+    if (add_record_to_inode(&current_dir, *new_directory_record) != 0) {
+        printf("ERRO\n");
+        return -1;
+    }
     write_inode(dest_path.current->record.i_node, &current_dir);
-    free(new_directory_record);
 
-    write_inode(idx, new_directory_inode);
+    free(new_directory_record);
 
     //printf("*add record to self `.`\n");
     // Cria o record para o self '.'
@@ -1178,10 +1189,11 @@ int mkdir2(char *pathname)
     self_record->blocksFileSize = 1;         // ocupa 1 inode quando criado
     self_record->bytesFileSize  = RECORD_SIZE * 2;        // ocupa dois records
     memcpy(self_record->name, ".\0", 2);
-    add_record_to_inode(*new_directory_inode, *self_record);
+    if (add_record_to_inode(new_directory_inode, *self_record) != 0) {
+        printf("ERRO\n");
+        return -1;
+    }
     free(self_record);
-
-    write_inode(idx, new_directory_inode);
 
     //printf("*add record to self `..`\n");
     // Cria o record para o pai '..'
@@ -1193,12 +1205,12 @@ int mkdir2(char *pathname)
     father_record->blocksFileSize = -1;         // TODO tamanho de blocos do dir pai?
     father_record->bytesFileSize  = -1;        //  TODO tamanho do dir pai? imagina atualizar tudo isso
     memcpy(father_record->name, "..\0", 3);
-    add_record_to_inode(*new_directory_inode, *father_record);
+    add_record_to_inode(new_directory_inode, *father_record);
 
-    write_inode(idx, new_directory_inode);
 
     free(father_record);
 
+    write_inode(idx, new_directory_inode);
     free(new_directory_inode);
     free(path);
     return opendir2(pathname);
