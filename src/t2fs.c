@@ -1433,6 +1433,7 @@ int chdir2_generic (PATH *current_path, char *pathname)
 
 int chdir2(char *pathname)
 {
+    checkSuperBloco();
     return chdir2_generic(&current_path, pathname);
 }
 
