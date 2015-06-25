@@ -1243,43 +1243,37 @@ int mkdir2(char *pathname)
     write_inode(dest_path.current->record.i_node, &current_dir);
 
     // Cria inode para arquivo
-    struct t2fs_inode *new_directory_inode;
-    new_directory_inode = malloc(sizeof *new_directory_inode);
-    initialize_inode(new_directory_inode);
+    struct t2fs_inode new_directory_inode;
+    initialize_inode(&new_directory_inode);
 
     //printf("*add record to self `.`\n");
     // Cria o record para o self '.'
-    struct t2fs_record *self_record;
-    self_record = malloc(sizeof *self_record);
-    self_record->TypeVal        = TYPEVAL_DIRETORIO;
-    self_record->i_node         = idx;
-    self_record->blocksFileSize = 1;         // ocupa 1 inode quando criado
-    self_record->bytesFileSize  = RECORD_SIZE * 2;        // ocupa dois records
-    memcpy(self_record->name, ".\0", 2);
-    if (add_record_to_inode(new_directory_inode, *self_record) != 0) {
+    struct t2fs_record self_record;
+    self_record.TypeVal        = TYPEVAL_DIRETORIO;
+    self_record.i_node         = idx;
+    self_record.blocksFileSize = 1;         // ocupa 1 inode quando criado
+    self_record.bytesFileSize  = RECORD_SIZE * 2;        // ocupa dois records
+    memcpy(self_record.name, ".\0", 2);
+    if (add_record_to_inode(&new_directory_inode, self_record) != 0) {
         free_path(&dest_path);
         printf("ERRO\n");
         return -1;
     }
-    free(self_record);
 
     //printf("*add record to self `..`\n");
     // Cria o record para o pai '..'
-    struct t2fs_record *father_record;
+    struct t2fs_record father_record;
     int idx_pai = dest_path.current->record.i_node;
-    father_record = malloc(sizeof *father_record);
-    father_record->TypeVal        = TYPEVAL_DIRETORIO;
-    father_record->i_node         = idx_pai;
-    father_record->blocksFileSize = -1;         // TODO tamanho de blocos do dir pai?
-    father_record->bytesFileSize  = -1;        //  TODO tamanho do dir pai? imagina atualizar tudo isso
-    memcpy(father_record->name, "..\0", 3);
-    add_record_to_inode(new_directory_inode, *father_record);
+    father_record.TypeVal        = TYPEVAL_DIRETORIO;
+    father_record.i_node         = idx_pai;
+    father_record.blocksFileSize = -1;         // TODO tamanho de blocos do dir pai?
+    father_record.bytesFileSize  = -1;        //  TODO tamanho do dir pai? imagina atualizar tudo isso
+    memcpy(father_record.name, "..\0", 3);
+    add_record_to_inode(&new_directory_inode, father_record);
 
     free_path(&dest_path);
-    free(father_record);
 
-    write_inode(idx, new_directory_inode);
-    free(new_directory_inode);
+    write_inode(idx, &new_directory_inode);
     return 0;
 }
 
