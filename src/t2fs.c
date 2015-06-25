@@ -393,6 +393,19 @@ int delete_inode(int id_inode)
     return set_on_bitmap(id_inode, 0, INODE, superBloco);
 }
 
+int deallocate_inode(int id_inode)
+{
+    struct t2fs_inode inode = read_i_node(id_inode);
+    int i = 0;
+    while (get_block_id_from_inode(i, &inode) != -1) {
+        int id_block = get_block_id_from_inode(i, &inode);
+        set_on_bitmap(id_block, 0, BLOCK, superBloco);
+        i++;
+    }
+
+    return delete_inode(id_inode);
+}
+
 struct t2fs_inode read_i_node(int id_inode)
 {
     struct t2fs_inode inode;//={0};
@@ -717,8 +730,7 @@ int delete2(char *filename)
 
     find_record_in_inode(dir_inode, filename, &file_record);
     remove_record_from_inode(dir_inode, filename);
-
-    delete_inode(file_record.i_node);
+    deallocate_inode(file_record.i_node);
 
     return 0;
 }
