@@ -1415,8 +1415,8 @@ int readdir2(DIR2 handle, DIRENT2 *dentry)
         return -1;
     }
 
-    struct t2fs_inode dir_inode = read_i_node(workingFile->record->i_node);
-    read_records(dir_inode.dataPtr[0], records);
+//    struct t2fs_inode dir_inode = workingFile->inode);
+    read_records(workingFile->inode->dataPtr[0], records);
 
     //read_records(workingFile->inode->dataPtr[0], records); //lê records apontados pelo primeiro ponteiro de I-node
 
@@ -1457,6 +1457,46 @@ int readdir2(DIR2 handle, DIRENT2 *dentry)
 int closedir2(DIR2 handle)
 {
     checkSuperBloco();
+
+    OPEN_FILE *searcher = open_directories->first;
+    if (searcher == NULL) {
+        printf("ERRO: Nao e possivel fechar diretorio %d, o mesmo nao existe\n", handle);
+        return -1;
+    } else if (searcher->handle == handle) { // se for o primeiro elemento
+        open_directories->first = searcher->next;
+        open_directories->size--;
+        free(searcher->inode);
+//        free(searcher->record); //TODO estava gerando erro... why?
+        free(searcher);
+        printf("Diretorio %d fechado com sucesso\n", handle);
+        return 0;
+    }
+
+    // Enquanto nao chegar no fim da lista e handle do arquivo nao for igual ao handle passado
+    while (searcher->handle != handle) {
+        if (searcher->next == NULL) {
+            printf("ERRO: Handle %d nao aponta para um diretorio aberto.\n", handle);
+            return -1;
+        }
+        searcher = searcher->next;
+    }
+
+    if (searcher->next->next == NULL) { // Se searcher->next for o ultimo elemento da lista
+        free(searcher->next->record);
+        free(searcher->next->inode);
+        free(searcher->next);
+        searcher = NULL;
+        open_directories->size--;
+        printf("Diretorio %d fechado com sucesso\n", handle);
+        return 0;
+    }
+    OPEN_FILE *aux = searcher->next;
+    searcher->next = searcher->next->next;
+    free(aux->record);
+    free(aux->inode);
+    free(aux);
+    open_directories->size--;
+    printf("Diretorio %d fechado com sucesso\n", handle);
     return 0;
 }
 
