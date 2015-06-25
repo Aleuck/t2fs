@@ -53,7 +53,8 @@ int allocate_block(bitmap_type type);
 void init_indices_block(int id_block);
 void init_data_block(int id_block);
 void init_records_block(int id_block);
-
+int get_last_abstract_block_from_inode(struct t2fs_inode *inode);
+int get_position_eof(OPEN_FILE *open_file);
 void print_record(struct t2fs_record record);
 OPEN_FILE* get_file_from_list(int handle, file_type type);
 void print_indices(int id_block);
@@ -803,18 +804,34 @@ int read2(FILE2 handle, char *buffer, int size)
     unsigned int first_block = file->position / superBloco.BlockSize;
     unsigned int blocks_to_read = ((file->position + size) / superBloco.BlockSize) + 1;
     unsigned int b;
+    printf("POSITION: %d\n", file->position);
+    unsigned int last_position = get_position_eof(file);
+    printf("LAST_POSITION: %d\n", last_position);
 
+    if ((file->position + size) > last_position) {
+        printf("ERRO: Tentando ler apos final do arquivo\n");
+        return -1;
+    }
     // Le todos os blocos que fazem parte de buffer
     int last_i = 0;
+    int bytes_read = 0;
+
     for (b = 0; b < blocks_to_read; b++) {
         int id_block = get_block_id_from_inode(first_block+b, file->inode);
         char buf[superBloco.BlockSize];
         read_block(id_block, buf, superBloco);
 
         unsigned int i = 0;
-        while (buf[i] != '\0' && i >= file->position) {
-            buffer[i + last_i] = buf[i];
-            i++;
+        if (b != (blocks_to_read - 1)) { // Se nao for o ultimo bloco
+            for (i = 0; i < superBloco.BlockSize-1; i++) {
+                buffer[i + last_i] = buf[i];
+                bytes_read++;
+            }
+        } else {                         // Se for o ultimo bloco
+            while (bytes_read != size) {
+                buffer[bytes_read + last_i] = buf[bytes_read];
+                bytes_read++;
+            }
         }
         last_i = i;
     }
@@ -1058,6 +1075,21 @@ int get_last_abstract_block_from_inode(struct t2fs_inode *inode)
     return i-1;
 }
 
+int get_position_eof(OPEN_FILE *file)
+{
+    int id = get_last_abstract_block_from_inode(file->inode);
+    printf("id inode: %d\n", id);
+    int position = id * superBloco.BlockSize;
+    char buffer[superBloco.BlockSize];
+    read_block(id, buffer, superBloco);
+
+    int i = 0;
+    while (buffer[i] != '\0') {
+        i++;
+    }
+    return position+i;
+}
+
 int set_position_eof(OPEN_FILE *file)
 {
     int id = get_last_abstract_block_from_inode(file->inode);
@@ -1131,6 +1163,7 @@ int write2(FILE2 handle, char *buffer, int size)
                 to_write[b][j] = buffer[bytes_written];
                 bytes_written++;
                 file->position++;
+                printf("position: %d\n", file->position);
                 file->record->bytesFileSize++; // Atualiza tamanho em bytes do arquivo.
             }
             to_write[b][superBloco.BlockSize-1] = '\0';  // Força fim de linha
