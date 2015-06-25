@@ -791,7 +791,7 @@ int delete2(char *filename)
     struct t2fs_record file_record;
 
     find_record_in_inode(dir_inode, filename, &file_record);
-    remove_record_from_inode(dir_inode, filename);
+    remove_record_from_inode(&dir_inode, filename);
 
     delete_inode(file_record.i_node);
 
