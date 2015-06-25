@@ -1401,6 +1401,7 @@ int chdir2_simple(PATH *current_path, char *dirname)
         current_path->current = dir;
         return 0;
     }
+
     printf("ERRO: Diretorio `%s` nao encontrado.\n", dirname);
     return -1;
 }
@@ -1441,20 +1442,11 @@ int getcwd2_helper(PATH_NODE *path_node, char *pathname, int size) {
     int index = 0;
     if (path_node->previous) {
         index = getcwd2_helper(path_node->previous, pathname, size);
-    } else {
-        if (size > 1) {
-            pathname[0] = '/';
-            pathname[1] = '\0';
-            return 1;
-        }
-        if (size == 1) {
-            pathname[0] = '\0';
-            return 0;
-        }
+        pathname[index++] = '/';
     }
     int i = 0;
     while (path_node->record.name[i] != '\0' && (i + index + 1) < size) {
-        pathname[i] = path_node->record.name[i + index];
+        pathname[i + index] = path_node->record.name[i];
         i++;
     }
     pathname[i + index] = '\0';
