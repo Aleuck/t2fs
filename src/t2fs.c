@@ -54,7 +54,8 @@ int allocate_block(bitmap_type type);
 void init_indices_block(int id_block);
 void init_data_block(int id_block);
 void init_records_block(int id_block);
-
+int get_last_abstract_block_from_inode(struct t2fs_inode *inode);
+int get_position_eof(OPEN_FILE *open_file);
 void print_record(struct t2fs_record record);
 OPEN_FILE* get_file_from_list(int handle, file_type type);
 void print_indices(int id_block);
@@ -822,24 +823,41 @@ int read2(FILE2 handle, char *buffer, int size)
     unsigned int first_block = file->position / superBloco.BlockSize;
     unsigned int blocks_to_read = ((file->position + size) / superBloco.BlockSize) + 1;
     unsigned int b;
+    unsigned int last_position = file->record->bytesFileSize;
 
+    if ((file->position + size) > last_position) {
+        printf("ERRO: Tentando ler apos final do arquivo\n");
+    }
     // Le todos os blocos que fazem parte de buffer
     int last_i = 0;
+    int bytes_read = 0;
+
     for (b = 0; b < blocks_to_read; b++) {
         int id_block = get_block_id_from_inode(first_block+b, file->inode);
         char buf[superBloco.BlockSize];
         read_block(id_block, buf, superBloco);
 
         unsigned int i = 0;
-        while (buf[i] != '\0' && i >= file->position) {
-            buffer[i + last_i] = buf[i];
-            i++;
+        if (b != (blocks_to_read - 1)) { // Se nao for o ultimo bloco
+            for (i = 0; i < superBloco.BlockSize-1; i++) {
+                buffer[i + last_i] = buf[i];
+                bytes_read++;
+                file->position++;
+            }
+        } else {                         // Se for o ultimo bloco
+            while (bytes_read != size) {
+                if (file->position < last_position) { // Se a posicao for menor que o tamanho do arquivo.
+                    buffer[bytes_read] = buf[i];
+                    bytes_read++;
+                    i++;
+                    file->position++;
+                }
+            }
         }
-        last_i = i;
+        last_i += i;
     }
 
-    buffer[size-1] = '\0';
-    return 0;
+    return bytes_read;
 }
 
 /**
@@ -1077,37 +1095,6 @@ int get_last_abstract_block_from_inode(struct t2fs_inode *inode)
     return i-1;
 }
 
-int set_position_eof(OPEN_FILE *file)
-{
-    int id = get_last_abstract_block_from_inode(file->inode);
-    int position = id * superBloco.BlockSize;
-
-    char buffer[superBloco.BlockSize];
-    read_block(id, buffer, superBloco);
-
-    int i = 0;
-    while (buffer[i] != '\0') {
-        i++;
-    }
-
-    file->position = position + i;
-
-    return 0;
-}
-
-int get_eof_position(int id_block)
-{
-    char buffer[superBloco.BlockSize];
-    read_block(id_block, buffer, superBloco);
-
-    unsigned int i = 0;
-    while (buffer[i] != '\0') {
-        i++;
-    }
-
-    return i;
-}
-
 /**
  *  Funcao que dado o handle do arquivo, escreve no mesmo o conteudo
  *  do buffer.
@@ -1120,9 +1107,6 @@ int write2(FILE2 handle, char *buffer, int size)
     unsigned int first_block_id = file->position / superBloco.BlockSize;
     int          blocks_to_read = (((file->position + size) - 1) / superBloco.BlockSize) + 1;
     char         to_write[blocks_to_read][superBloco.BlockSize];
-
-    printf("block_size: %d\n", superBloco.BlockSize);
-    printf("blocks_to_read: %d\n", blocks_to_read);
 
     int b;
     for (b = 0; b < blocks_to_read; b++) {
@@ -1150,11 +1134,13 @@ int write2(FILE2 handle, char *buffer, int size)
                 to_write[b][j] = buffer[bytes_written];
                 bytes_written++;
                 file->position++;
-                file->record->bytesFileSize++; // Atualiza tamanho em bytes do arquivo.
+                if (file->position > file->record->bytesFileSize) {
+                    file->record->bytesFileSize++; // Atualiza tamanho em bytes do arquivo.
+                }
             }
-            to_write[b][superBloco.BlockSize-1] = '\0';  // Força fim de linha
-            file->record->bytesFileSize++; // Atualiza tamanho em bytes do arquivo.
         }
+        to_write[b][superBloco.BlockSize-1] = '\0';  // Força fim de linha
+        file->position++;
     }
     int i;
     for (b = 0; b < blocks_to_read; b++) {
@@ -1181,7 +1167,7 @@ int seek2(FILE2 handle, unsigned int offset)
     OPEN_FILE *file = get_file_from_list(handle, FILE_TYPE);
 
     if (offset == (unsigned int) -1) {
-        set_position_eof(file);
+        file->position = file->record->bytesFileSize;
         return 0;
     }
 
@@ -1257,44 +1243,38 @@ int mkdir2(char *pathname)
     write_inode(dest_path.current->record.i_node, &current_dir);
 
     // Cria inode para arquivo
-    struct t2fs_inode *new_directory_inode;
-    new_directory_inode = malloc(sizeof *new_directory_inode);
-    initialize_inode(new_directory_inode);
+    struct t2fs_inode new_directory_inode;
+    initialize_inode(&new_directory_inode);
 
     //printf("*add record to self `.`\n");
     // Cria o record para o self '.'
-    struct t2fs_record *self_record;
-    self_record = malloc(sizeof *self_record);
-    self_record->TypeVal        = TYPEVAL_DIRETORIO;
-    self_record->i_node         = idx;
-    self_record->blocksFileSize = 1;         // ocupa 1 inode quando criado
-    self_record->bytesFileSize  = RECORD_SIZE * 2;        // ocupa dois records
-    memcpy(self_record->name, ".\0", 2);
-    if (add_record_to_inode(new_directory_inode, *self_record) != 0) {
+    struct t2fs_record self_record;
+    self_record.TypeVal        = TYPEVAL_DIRETORIO;
+    self_record.i_node         = idx;
+    self_record.blocksFileSize = 1;         // ocupa 1 inode quando criado
+    self_record.bytesFileSize  = RECORD_SIZE * 2;        // ocupa dois records
+    memcpy(self_record.name, ".\0", 2);
+    if (add_record_to_inode(&new_directory_inode, self_record) != 0) {
         free_path(&dest_path);
         printf("ERRO\n");
         return -1;
     }
-    free(self_record);
 
     //printf("*add record to self `..`\n");
     // Cria o record para o pai '..'
-    struct t2fs_record *father_record;
+    struct t2fs_record father_record;
     int idx_pai = dest_path.current->record.i_node;
-    father_record = malloc(sizeof *father_record);
-    father_record->TypeVal        = TYPEVAL_DIRETORIO;
-    father_record->i_node         = idx_pai;
-    father_record->blocksFileSize = -1;         // TODO tamanho de blocos do dir pai?
-    father_record->bytesFileSize  = -1;        //  TODO tamanho do dir pai? imagina atualizar tudo isso
-    memcpy(father_record->name, "..\0", 3);
-    add_record_to_inode(new_directory_inode, *father_record);
+    father_record.TypeVal        = TYPEVAL_DIRETORIO;
+    father_record.i_node         = idx_pai;
+    father_record.blocksFileSize = -1;         // TODO tamanho de blocos do dir pai?
+    father_record.bytesFileSize  = -1;        //  TODO tamanho do dir pai? imagina atualizar tudo isso
+    memcpy(father_record.name, "..\0", 3);
+    add_record_to_inode(&new_directory_inode, father_record);
 
     free_path(&dest_path);
-    free(father_record);
 
-    write_inode(idx, new_directory_inode);
-    free(new_directory_inode);
-    return opendir2(pathname);
+    write_inode(idx, &new_directory_inode);
+    return 0;
 }
 
 int rmdir2(char *pathname)
