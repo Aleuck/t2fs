@@ -706,6 +706,7 @@ FILE2 open2(char *filename)
     find_record_in_inode(current_dir, filename, file_record);
 
     OPEN_FILE *open_file = malloc(sizeof(*open_file));
+    open_file->record = file_record;
     open_file->inode = malloc(sizeof(struct t2fs_inode));
     *(open_file->inode) = read_i_node(file_record->i_node);
     open_file->id_inode = file_record->i_node;
@@ -735,6 +736,7 @@ int close2(FILE2 handle)
         open_files->first = searcher->next;
         open_files->size--;
         free(searcher->inode);
+        free(searcher->record);
         free(searcher);
         printf("Arquivo %d fechado com sucesso\n", handle);
         return 0;
@@ -750,6 +752,7 @@ int close2(FILE2 handle)
     }
 
     if (searcher->next->next == NULL) { // Se searcher->next for o ultimo elemento da lista
+        free(searcher->next->record);
         free(searcher->next->inode);
         free(searcher->next);
         searcher = NULL;
@@ -759,6 +762,7 @@ int close2(FILE2 handle)
     }
     OPEN_FILE *aux = searcher->next;
     searcher->next = searcher->next->next;
+    free(aux->record);
     free(aux->inode);
     free(aux);
     open_files->size--;
