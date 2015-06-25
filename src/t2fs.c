@@ -1163,13 +1163,12 @@ int mkdir2(char *pathname)
     // Cria inode para arquivo
     new_directory_inode = malloc(sizeof *new_directory_inode);
     initialize_inode(new_directory_inode);
-    write_inode(idx, new_directory_inode);
 
     // get inode where the dir is being created
     struct t2fs_inode current_dir;
     current_dir = read_i_node(dest_path.current->record.i_node);
-
     add_record_to_inode(current_dir, *new_directory_record);
+    write_inode(dest_path.current->record.i_node, &current_dir);
     free(new_directory_record);
 
     // Cria o record para o self '.'
@@ -1193,6 +1192,8 @@ int mkdir2(char *pathname)
     father_record->bytesFileSize  = -1;        //  TODO tamanho do dir pai? imagina atualizar tudo isso
     memcpy(father_record->name, "..\n", 3);
     add_record_to_inode(*new_directory_inode, *father_record);
+
+    write_inode(idx, new_directory_inode);
     free(father_record);
 
     free(new_directory_inode);
