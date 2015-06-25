@@ -14,6 +14,12 @@ void ls(DIR2 dirHandle)
 int main(int argc, char *argv[]) {
     DIR2 dir = opendir2("inexistente");
 
+    create2("Arquivo1");
+    if(opendir2("Arquivo1") >= 0){
+        printf("Nao pode permitir abrir arquivos");
+    }
+
+
     if (dir >= 0){
         printf("Erro nao identificado! Diretorio nao existente nao pode ser aberto\n");
     }

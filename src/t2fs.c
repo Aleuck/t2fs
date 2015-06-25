@@ -749,6 +749,9 @@ FILE2 open2(char *filename)
         return -1;
     }
 
+    if (file_record->TypeVal == TYPEVAL_DIRETORIO)
+        return -1;
+
     OPEN_FILE *open_file = malloc(sizeof(*open_file));
     open_file->record = file_record;
     open_file->inode = malloc(sizeof(struct t2fs_inode));
