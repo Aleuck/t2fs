@@ -1290,7 +1290,7 @@ int mkdir2(char *pathname)
 
     write_inode(idx, new_directory_inode);
     free(new_directory_inode);
-    return opendir2(pathname);
+    return 0;
 }
 
 int rmdir2(char *pathname)
