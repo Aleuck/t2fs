@@ -19,6 +19,14 @@ int main(int argc, char *argv[]) {
     }
 
     //Arquivo 1 deve ter sido criado previamente
+
+//    ls(opendir2("/"));
+//    mkdir2("dir");
+    //dir deve existir
+
+    if (open2("dir") >= 0){
+        printf("Nao pode permitir abrir diretorios");
+    }
     file = open2("Arquivo1");
 
     if (file >= 0){

@@ -35,28 +35,14 @@ int main(int argc, char *argv[])
 
     DIR2 handleDir = opendir2("/");
 
-//    seek2(handleArq, 0);
-//    char read_buffer[8];
-//    read2(handleArq, read_buffer, 8);
-    //printf("\nO QUE FOI LIDO:\n");
-    //int i;
-    //for (i = 0; i < 8; i++) {
-    //    printf("%c", read_buffer[i]);
-    // }
-    //printf("\n");
-    char buffer_read[size];
+    char buffer_read2[size-1];
     seek2(handleArq, 0);
-    //read2(handleArq, buffer_read, size);
-    //printf("Arquivo lido: \n%s\n", buffer_read);
-    write2(handleArq, buffer, 40);
-    ls(handleDir);
-    /* char buffer2[] = "Isso vai sobreescrever\0"; */
-    /* write2(handleArq, buffer2, 23); */
-
-    /* char buffer_read2[size]; */
-    /* seek2(handleArq, 0); */
-    /* read2(handleArq, buffer_read2, size); */
-    /* printf("Arquivo lido 2: \n%s\n", buffer_read2); */
+    int bytes_read = read2(handleArq, buffer_read2, size-1);
+    printf("bytes read: %d\n", bytes_read);
+    int i;
+    for (i = 0; i < size; i++) {
+        printf("%c", buffer_read2[i]);
+    }
 
     /* char path[100]; */
     /* chdir2("/"); */

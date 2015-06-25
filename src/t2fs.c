@@ -787,21 +787,14 @@ FILE2 create2(char *filename)
 int delete2(char *filename)
 {
     checkSuperBloco();
-    struct t2fs_inode inode = read_i_node(0);
-    print_inode(inode);
-    // Escreve inode igual ao inode 0 no inode 1
-    write_inode(1, &inode);
+    struct t2fs_inode dir_inode = current_dir;
+    struct t2fs_record file_record;
 
-    struct t2fs_inode inode1 = read_i_node(1);
-    print_inode(inode1);
+    find_record_in_inode(dir_inode, filename, &file_record);
+    remove_record_from_inode(dir_inode, filename);
 
-    //printf("\n%d, %d\n", superBloco.InodeBlock, superBloco.FirstDataBlock);
-    //print_inode(*read_i_node(0));
-    //printf("\nBLOCKS\n");
-    //printf("inode: %d, block: %d\n", superBloco.InodeBlock, superBloco.FirstDataBlock);
-    //print_bitmap(BLOCK, superBloco);
-    //printf("\nINODES\n");
-    print_bitmap(INODE, superBloco);
+    delete_inode(file_record.i_node);
+
     return 0;
 }
 
@@ -823,6 +816,9 @@ FILE2 open2(char *filename)
         printf("ERRO: registro nao encontrado\n");
         return -1;
     }
+
+    if (file_record->TypeVal == TYPEVAL_DIRETORIO)
+        return -1;
 
     OPEN_FILE *open_file = malloc(sizeof(*open_file));
     open_file->record = file_record;
@@ -898,7 +894,7 @@ int read2(FILE2 handle, char *buffer, int size)
     unsigned int first_block = file->position / superBloco.BlockSize;
     unsigned int blocks_to_read = ((file->position + size) / superBloco.BlockSize) + 1;
     unsigned int b;
-    unsigned int last_position = get_position_eof(file);
+    unsigned int last_position = file->record->bytesFileSize;
 
     if ((file->position + size) > last_position) {
         printf("ERRO: Tentando ler apos final do arquivo\n");
@@ -917,18 +913,22 @@ int read2(FILE2 handle, char *buffer, int size)
             for (i = 0; i < superBloco.BlockSize-1; i++) {
                 buffer[i + last_i] = buf[i];
                 bytes_read++;
+                file->position++;
             }
         } else {                         // Se for o ultimo bloco
             while (bytes_read != size) {
-                buffer[bytes_read + last_i] = buf[bytes_read];
-                bytes_read++;
+                if (file->position < last_position) { // Se a posicao for menor que o tamanho do arquivo.
+                    buffer[bytes_read] = buf[i];
+                    bytes_read++;
+                    i++;
+                    file->position++;
+                }
             }
         }
-        last_i = i;
+        last_i += i;
     }
 
-    buffer[size-1] = '\0';
-    return 0;
+    return bytes_read;
 }
 
 /**
@@ -1171,17 +1171,6 @@ int get_last_abstract_block_from_inode(struct t2fs_inode *inode)
     return i-1;
 }
 
-int get_position_eof(OPEN_FILE *file)
-{
-    return file->record->bytesFileSize;
-}
-
-int set_position_eof(OPEN_FILE *file)
-{
-    file->position = file->record->bytesFileSize;
-    return 0;
-}
-
 /**
  *  Funcao que dado o handle do arquivo, escreve no mesmo o conteudo
  *  do buffer.
@@ -1191,12 +1180,12 @@ int write2(FILE2 handle, char *buffer, int size)
     checkSuperBloco();
 
     OPEN_FILE    *file          = get_file_from_list(handle, FILE_TYPE);
+    if (file == NULL)
+        return -1;
+
     unsigned int first_block_id = file->position / superBloco.BlockSize;
     int          blocks_to_read = (((file->position + size) - 1) / superBloco.BlockSize) + 1;
     char         to_write[blocks_to_read][superBloco.BlockSize];
-
-    printf("block_size: %d\n", superBloco.BlockSize);
-    printf("blocks_to_read: %d\n", blocks_to_read);
 
     int b;
     for (b = 0; b < blocks_to_read; b++) {
@@ -1257,7 +1246,7 @@ int seek2(FILE2 handle, unsigned int offset)
     OPEN_FILE *file = get_file_from_list(handle, FILE_TYPE);
 
     if (offset == (unsigned int) -1) {
-        set_position_eof(file);
+        file->position = file->record->bytesFileSize;
         return 0;
     }
 
@@ -1507,8 +1496,8 @@ int readdir2(DIR2 handle, DIRENT2 *dentry)
         return -1;
     }
 
-    struct t2fs_inode dir_inode = read_i_node(workingFile->record->i_node);
-    read_records(dir_inode.dataPtr[0], records);
+//    struct t2fs_inode dir_inode = workingFile->inode);
+    read_records(workingFile->inode->dataPtr[0], records);
 
     //read_records(workingFile->inode->dataPtr[0], records); //lê records apontados pelo primeiro ponteiro de I-node
 
@@ -1549,6 +1538,46 @@ int readdir2(DIR2 handle, DIRENT2 *dentry)
 int closedir2(DIR2 handle)
 {
     checkSuperBloco();
+
+    OPEN_FILE *searcher = open_directories->first;
+    if (searcher == NULL) {
+        printf("ERRO: Nao e possivel fechar diretorio %d, o mesmo nao existe\n", handle);
+        return -1;
+    } else if (searcher->handle == handle) { // se for o primeiro elemento
+        open_directories->first = searcher->next;
+        open_directories->size--;
+        free(searcher->inode);
+//        free(searcher->record); //TODO estava gerando erro... why?
+        free(searcher);
+        printf("Diretorio %d fechado com sucesso\n", handle);
+        return 0;
+    }
+
+    // Enquanto nao chegar no fim da lista e handle do arquivo nao for igual ao handle passado
+    while (searcher->handle != handle) {
+        if (searcher->next == NULL) {
+            printf("ERRO: Handle %d nao aponta para um diretorio aberto.\n", handle);
+            return -1;
+        }
+        searcher = searcher->next;
+    }
+
+    if (searcher->next->next == NULL) { // Se searcher->next for o ultimo elemento da lista
+        free(searcher->next->record);
+        free(searcher->next->inode);
+        free(searcher->next);
+        searcher = NULL;
+        open_directories->size--;
+        printf("Diretorio %d fechado com sucesso\n", handle);
+        return 0;
+    }
+    OPEN_FILE *aux = searcher->next;
+    searcher->next = searcher->next->next;
+    free(aux->record);
+    free(aux->inode);
+    free(aux);
+    open_directories->size--;
+    printf("Diretorio %d fechado com sucesso\n", handle);
     return 0;
 }
 
