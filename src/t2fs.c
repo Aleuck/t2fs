@@ -358,7 +358,7 @@ int write_inode(int id_inode, struct t2fs_inode *inode)
     int inode_relative = (((id_inode) * INODE_SIZE) % superBloco.BlockSize);
 
     if (id_inode >= superBloco.NofBlocks) {
-        printf("Tentando setar o inode %d que nao existe.\n", id_inode);
+        printf("Tentando escrever no inode %d que nao existe.\n", id_inode);
         return -1;
     }
 
@@ -374,6 +374,16 @@ int write_inode(int id_inode, struct t2fs_inode *inode)
     write_block(superBloco.InodeBlock + block_relative, buffer, superBloco);
     set_on_bitmap(id_inode, 1, INODE, superBloco);
     return 0;
+}
+
+int delete_inode(int id_inode)
+{
+    if (id_inode >= superBloco.NofBlocks) {
+        printf("Tentando deletar inode %d que nao existe.\n", id_inode);
+        return -1;
+    }
+
+    return set_on_bitmap(id_inode, 0, INODE, superBloco);
 }
 
 struct t2fs_inode read_i_node(int id_inode)
@@ -1183,6 +1193,7 @@ int mkdir2(char *pathname)
     //printf("*add new dir record to parents inode\n");
     // get inode where the dir is being created
     if (add_record_to_inode(&current_dir, new_directory_record) != 0) {
+        free_path(&dest_path);
         printf("ERRO\n");
         return -1;
     }
@@ -1203,6 +1214,7 @@ int mkdir2(char *pathname)
     self_record->bytesFileSize  = RECORD_SIZE * 2;        // ocupa dois records
     memcpy(self_record->name, ".\0", 2);
     if (add_record_to_inode(new_directory_inode, *self_record) != 0) {
+        free_path(&dest_path);
         printf("ERRO\n");
         return -1;
     }
