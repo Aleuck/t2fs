@@ -70,6 +70,8 @@ int chdir2_simple(PATH *current_path, char *dirname);
 // chdir any path (pathname is trunkated)
 int chdir2_generic (PATH *current_path, char *pathname);
 
+int free_path(PATH *path);
+
 /***********************************/
 /* Definicao do corpo das Funcoes **/
 /***********************************/
@@ -354,6 +356,11 @@ int write_inode(int id_inode, struct t2fs_inode *inode)
     char buffer[superBloco.BlockSize];
     int block_relative = ((id_inode) * INODE_SIZE) / superBloco.BlockSize;
     int inode_relative = (((id_inode) * INODE_SIZE) % superBloco.BlockSize);
+
+    if (id_inode >= superBloco.NofBlocks) {
+        printf("Tentando setar o inode %d que nao existe.\n", id_inode);
+        return -1;
+    }
 
     read_block(superBloco.InodeBlock + block_relative, buffer, superBloco);
 
@@ -1174,39 +1181,45 @@ int mkdir2(char *pathname)
     } else {
         strncpy(name, path, sizeof(name));
     }
+    free(path);
     //printf("dirname: %s\n", name);
 
+    // inode for current dir
+    struct t2fs_inode current_dir = read_i_node(dest_path.current->record.i_node);
 
-    struct t2fs_record *new_directory_record;
-    struct t2fs_inode *new_directory_inode;
+    // diretorio existente?
+    struct t2fs_record new_directory_record;
+    if (find_record_in_inode(current_dir, name, &new_directory_record) != -1) {
+        free_path(&dest_path);
+        printf("mkdir2: cannot create directory ‘%s’: File exists\n", name);
+        return -1;
+    }
+
 
     int idx = get_free_bit_on_bitmap(INODE, superBloco);
     //printf("Primeiro indice livre de inode e %d\n", idx);
 
     // Cria o record para o diretorio
-    new_directory_record = malloc(sizeof *new_directory_record);
-    new_directory_record->TypeVal        = TYPEVAL_DIRETORIO;
-    new_directory_record->i_node         = idx;
-    new_directory_record->blocksFileSize = 1;         // ocupa 1 inode quando criado
-    new_directory_record->bytesFileSize  = 0;        // TODO-: 31 bytes?? ou 0? --> tamanho do arquivo = tamanho bloco x blocs usados
+    //new_directory_record = malloc(sizeof *new_directory_record);
+    new_directory_record.TypeVal        = TYPEVAL_DIRETORIO;
+    new_directory_record.i_node         = idx;
+    new_directory_record.blocksFileSize = 1;         // ocupa 1 inode quando criado
+    new_directory_record.bytesFileSize  = 0;        // TODO-: 31 bytes?? ou 0? --> tamanho do arquivo = tamanho bloco x blocs usados
     //memcpy(new_directory_record->name, striped_filename, 31);
-    memcpy(new_directory_record->name, &name, 31);
-
-    // Cria inode para arquivo
-    new_directory_inode = malloc(sizeof *new_directory_inode);
-    initialize_inode(new_directory_inode);
+    memcpy(new_directory_record.name, &name, 31);
 
     //printf("*add new dir record to parents inode\n");
     // get inode where the dir is being created
-    struct t2fs_inode current_dir;
-    current_dir = read_i_node(dest_path.current->record.i_node);
-    if (add_record_to_inode(&current_dir, *new_directory_record) != 0) {
+    if (add_record_to_inode(&current_dir, new_directory_record) != 0) {
         printf("ERRO\n");
         return -1;
     }
     write_inode(dest_path.current->record.i_node, &current_dir);
 
-    free(new_directory_record);
+    // Cria inode para arquivo
+    struct t2fs_inode *new_directory_inode;
+    new_directory_inode = malloc(sizeof *new_directory_inode);
+    initialize_inode(new_directory_inode);
 
     //printf("*add record to self `.`\n");
     // Cria o record para o self '.'
@@ -1235,13 +1248,13 @@ int mkdir2(char *pathname)
     memcpy(father_record->name, "..\0", 3);
     add_record_to_inode(new_directory_inode, *father_record);
 
-
+    free_path(&dest_path);
     free(father_record);
 
     write_inode(idx, new_directory_inode);
     free(new_directory_inode);
-    free(path);
-    return opendir2(pathname);
+    return 0;
+    //return opendir2(pathname);
 }
 
 int rmdir2(char *pathname)
