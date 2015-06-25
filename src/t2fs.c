@@ -1047,7 +1047,6 @@ int seek2(FILE2 handle, unsigned int offset)
 int mkdir2(char *pathname)
 {
     checkSuperBloco();
-
     // path where the dir will be created
     PATH dest_path;
     char name[31];
@@ -1056,19 +1055,22 @@ int mkdir2(char *pathname)
     if (!is_path_consistent(pathname)) {
         return -1;
     }
+    int pathlength = strlen(pathname);
+    char *path = malloc(sizeof(char) * pathlength);
+    strncpy(path, pathname, pathlength);
 
     // allow relative paths
     copy_path(&dest_path, &current_path);
 
-    int bar_index = last_index_of('/', pathname);
+    int bar_index = last_index_of('/', path);
 
 
     if (bar_index != -1) {
-        strncpy(name, &pathname[bar_index+1], sizeof(name));
-        pathname[bar_index + 1] = '\0';
-        chdir2_generic(&dest_path, pathname);
+        strncpy(name, &(path[bar_index + 1]), 30);
+        path[bar_index + 1] = '\0';
+        chdir2_generic(&dest_path, path);
     } else {
-        strncpy(name, pathname, sizeof(name));
+        strncpy(name, path, sizeof(name));
     }
 
 
@@ -1126,6 +1128,7 @@ int mkdir2(char *pathname)
     free(father_record);
 
     free(new_directory_inode);
+    free(path);
     return opendir2(pathname);
 }
 
