@@ -17,12 +17,12 @@ int main(int argc, char *argv[])
     char buffer[] = "O dia em que eu sai de casa minha mae me disse, meu filho vem caaaaaa....... passou as maos em meus cabelos olhou emmeu olhos,"
         "comecou a falar...... sou um garto pequeno com amor nos meus olhos, e fome de caminhar...sabado de sol alugie um caminhao para levar a gal,"
         "pra cioner feijao, chegano la ma que vergonhe so toinha maconhe, os maconheiro tava doidao querendo o meu feijao, uioasj, ahoaoajaoajaoaja"
-        "We can go get drunk, staying up all night Singing 'Don't Stop Believing' til the morning light We can line up shots til it all goes bad"
-        "And we're passed out and puking in a taxi cab When you're lying here by my side (Oh yeah!) Nowhere else feels right (Oh yeah!)"
-        "I'd rather be alone with you on a Saturday night, This is gonna be a night so epic (Saturday night, saturday night) You and be baby nothing but netflix"
-        "(Saturday night, saturday night) We don't have to go, we can stay right here, We can go get drunk, staying up all night"
-        "Singing 'Don't Stop Believing' til the morning light We can line up shots til it all goes bad And we're passed out and puking in a taxi cab"
-        "When you're lying here by my side (Oh yeah!) Nowhere else feels right (Oh yeah!) I'd rather be alone with you on a Saturday night\0";
+        "We can go get drunk, staying up all night Singing Dont Stop Believing til the morning light We can line up shots til it all goes bad"
+        "And were passed out and puking in a taxi cab When youre lying here by my side (Oh yeah!) Nowhere else feels right (Oh yeah!)"
+        "Id rather be alone with you on a Saturday night, This is gonna be a night so epic (Saturday night, saturday night) You and be baby nothing but netflix"
+        "(Saturday night, saturday night) We dont have to go, we can stay right here, We can go get drunk, staying up all night"
+        "Singing Dont Stop Believing til the morning light We can line up shots til it all goes bad And were passed out and puking in a taxi cab"
+        "When youre lying here by my side (Oh yeah!) Nowhere else feels right (Oh yeah!) Id rather be alone with you on a Saturday night\0";
     int size = 0;
     while (buffer[size] != '\0') {
         size++;

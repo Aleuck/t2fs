@@ -23,7 +23,7 @@ int write_block(int id_block, char* buffer, struct t2fs_superbloco superBloco)
     int sector_I;
     for (sector_I = 0; sector_I < sectors_per_block; sector_I++){
         // lê direto para o buffer na posição correta
-        write_sector(start_sector + sector_I * sectors_per_block, buffer + SECTOR_SIZE * sector_I);
+        write_sector(start_sector + sector_I, buffer + SECTOR_SIZE * sector_I);
     }
 
     return 0;
@@ -43,7 +43,7 @@ int read_block(int id_block, char* buffer, struct t2fs_superbloco superBloco)
     int sector_I;
     for (sector_I = 0; sector_I < sectors_per_block; sector_I++){
         // lê direto para o buffer na posição correta
-        read_sector(start_sector + sector_I * sectors_per_block, buffer + SECTOR_SIZE * sector_I);
+        read_sector(start_sector + sector_I, buffer + SECTOR_SIZE * sector_I);
     }
 
     return 0;
