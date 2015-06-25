@@ -203,6 +203,7 @@ int add_record_to_index_array(DWORD *dataPtr, int dataPtrLength, struct t2fs_rec
             init_records_block(id_block);
             break;
         }
+        printf("read recods from block %d\n", id_block);
         read_records(id_block, records);
         for (record_index = 0; record_index < records_in_block; record_index++) {
             if (records[record_index].TypeVal == TYPEVAL_INVALIDO) {
@@ -217,6 +218,7 @@ int add_record_to_index_array(DWORD *dataPtr, int dataPtrLength, struct t2fs_rec
     }
     if (record_index != records_in_block) {
         records[record_index] = file_record;
+        printf("write recods from block %d\n", id_block);
         write_records_on_block(id_block, records);
         return 0;
     }
@@ -1132,7 +1134,7 @@ int mkdir2(char *pathname)
     if (!is_path_consistent(pathname)) {
         return -1;
     }
-    int pathlength = strlen(pathname);
+    int pathlength = strlen(pathname) + 1;
     char *path = malloc(sizeof(char) * pathlength);
     strncpy(path, pathname, pathlength);
 
@@ -1149,6 +1151,7 @@ int mkdir2(char *pathname)
     } else {
         strncpy(name, path, sizeof(name));
     }
+    printf("dirname: %s\n", name);
 
 
     struct t2fs_record *new_directory_record;
@@ -1400,7 +1403,7 @@ int chdir2_simple(PATH *current_path, char *dirname)
 
     dir_inode = read_i_node(current_path->current->record.i_node);
     if (find_record_in_inode(dir_inode, dirname, &dir_record) != -1) {
-        if (dir->record.TypeVal != TYPEVAL_DIRETORIO) {
+        if (dir_record.TypeVal != TYPEVAL_DIRETORIO) {
             printf("ERRO: '%s' nao e um diretorio.\n", dir->record.name);
             return -1;
         }
@@ -1410,7 +1413,7 @@ int chdir2_simple(PATH *current_path, char *dirname)
         current_path->current = dir;
         return 0;
     }
-    printf("ERRO: Diretorio nao encontrado.\n");
+    printf("ERRO: Diretorio `%s` nao encontrado.\n", dirname);
     return -1;
 }
 
