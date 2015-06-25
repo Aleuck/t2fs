@@ -48,6 +48,11 @@ PATH current_path = {0};
 /* Prototipo de Funcoes */
 
 void checkSuperBloco();
+int allocate_block(bitmap_type type);
+void init_indices_block(int id_block);
+void init_data_block(int id_block);
+void init_records_block(int id_block);
+
 void print_record(struct t2fs_record record);
 OPEN_FILE* get_file_from_list(int handle, file_type type);
 void print_indices(int id_block);
@@ -194,8 +199,9 @@ int add_record_to_index_array(DWORD *dataPtr, int dataPtrLength, struct t2fs_rec
     for (dataPtr_index = 0; dataPtr_index < dataPtrLength; dataPtr_index++) {
         id_block = dataPtr[dataPtr_index];
         if (id_block == 0x0FFFFFFFF) {
-            // TODO: criar novo bloco?
-            continue;
+            id_block = allocate_block(BLOCK);
+            init_records_block(id_block);
+            break;
         }
         read_records(id_block, records);
         for (record_index = 0; record_index < records_in_block; record_index++) {
@@ -228,26 +234,28 @@ int add_record_to_inode(struct t2fs_inode dir_inode, struct t2fs_record file_rec
     if (add_record_to_index_array(dir_inode.dataPtr, 10, file_record) == 0) {
         return 0;
     }
+
     // tenta usar indireção simples
-    if (dir_inode.singleIndPtr != 0x0FFFFFFFF) {
-        read_block(dir_inode.singleIndPtr, (char*) singleInd, superBloco);
+    if (dir_inode.singleIndPtr == 0x0FFFFFFFF) {
+        dir_inode.singleIndPtr = allocate_block(BLOCK);
+        init_indices_block(dir_inode.singleIndPtr);
+    }
+    read_block(dir_inode.singleIndPtr, (char*) singleInd, superBloco);
+    if (add_record_to_index_array(singleInd, ptrs_in_block, file_record) == 0) {
+        return 0;
+    }
+
+    // tenta usar indireção dupla
+    if (dir_inode.doubleIndPtr == 0x0FFFFFFFF) {
+        dir_inode.doubleIndPtr = allocate_block(BLOCK);
+        init_indices_block(dir_inode.doubleIndPtr);
+    }
+    read_block(dir_inode.doubleIndPtr, (char*) doubleInd, superBloco);
+    for (i = 0; i < ptrs_in_block; i++) {
+        read_block(doubleInd[i], (char*) singleInd, superBloco);
         if (add_record_to_index_array(singleInd, ptrs_in_block, file_record) == 0) {
             return 0;
         }
-    } else {
-        // TODO: alocar bloco de indireção simples?
-    }
-    // tenta usar indireção dupla
-    if (dir_inode.doubleIndPtr != 0x0FFFFFFFF) {
-        read_block(dir_inode.doubleIndPtr, (char*) doubleInd, superBloco);
-        for (i = 0; i < ptrs_in_block; i++) {
-            read_block(doubleInd[i], (char*) singleInd, superBloco);
-            if (add_record_to_index_array(singleInd, ptrs_in_block, file_record) == 0) {
-                return 0;
-            }
-        }
-    } else {
-        // TODO: alocar bloco de indireção dupla?
     }
     return -1;
 }
@@ -868,6 +876,19 @@ void init_data_block(int id_block)
 {
     char buffer[superBloco.BlockSize];
     DWORD zero = 0x0;
+
+    int i;
+    for (i = 0; i < get_num_indices_in_block(); i++) {
+        memcpy(buffer+(i*sizeof(DWORD)), (char*)&zero, sizeof(DWORD));
+    }
+
+    write_block(id_block, buffer, superBloco);
+}
+
+void init_records_block(int id_block)
+{
+    char buffer[superBloco.BlockSize];
+    DWORD zero = -1;
 
     int i;
     for (i = 0; i < get_num_indices_in_block(); i++) {
