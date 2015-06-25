@@ -773,16 +773,22 @@ int read2(FILE2 handle, char *buffer, int size)
     unsigned int first_block = file->position / superBloco.BlockSize;
     unsigned int blocks_to_read = ((file->position + size) / superBloco.BlockSize) + 1;
     unsigned int b;
-    unsigned int buffer_size = blocks_to_read * superBloco.BlockSize;
 
-    char to_read[buffer_size];
     // Le todos os blocos que fazem parte de buffer
+    int last_i = 0;
     for (b = 0; b < blocks_to_read; b++) {
         int id_block = get_block_id_from_inode(first_block+b, file->inode);
-        read_block(id_block, to_read+(superBloco.BlockSize*b), superBloco);
+        char buf[superBloco.BlockSize];
+        read_block(id_block, buf, superBloco);
+
+        unsigned int i = 0;
+        while (buf[i] != '\0' && i >= file->position) {
+            buffer[i + last_i] = buf[i];
+            i++;
+        }
+        last_i = i;
     }
 
-    memcpy(buffer, to_read+file->position, size);
     buffer[size-1] = '\0';
     return 0;
 }
@@ -1077,30 +1083,8 @@ int write2(FILE2 handle, char *buffer, int size)
         int id = get_block_id_from_inode(first_block_id + b, file->inode);
         write_block(id, &to_write[b][0], superBloco);
     }
-    char buf[superBloco.BlockSize];
+    write_inode(file->id_inode, file->inode);
 
-    printf("O QUE EU LI\n");
-    for (b = 0; b < blocks_to_read; b++) {
-        int id = get_block_id_from_inode(first_block_id + b, file->inode);
-        read_block(id, buf, superBloco);
-        printf("bloco %d:\n%s\n", b, buf);
-    }
-    /* printf("\nFOI LIDO: \n"); */
-    /* for (b = 0; b < blocks_to_read; b++) { */
-    /*     char buf[superBloco.BlockSize]; */
-    /*     int id_block = get_block_id_from_inode(first_block_id+b, file->inode); */
-    /*     printf("id do block %d\n", id_block); */
-    /*     read_block(id_block, buf, superBloco); */
-
-    /*     printf("bloco %d:\n", b); */
-    /*     printf("%s", buf); */
-    /*     printf("\n"); */
-    /* } */
-
-    /* write_inode(file->id_inode, file->inode); */
-    /* printf("Lendo Inode do Arquivo:\n"); */
-    /* struct t2fs_inode new_inode = read_i_node(file->id_inode); */
-    /* print_inode(new_inode); */
     return 0;
 }
 

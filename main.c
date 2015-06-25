@@ -29,11 +29,11 @@ int main(int argc, char *argv[])
     }
     printf("BUFFER SIZE: %d\n", size+1);
     write2(handleArq, buffer, size+1);
-    //char buffer_read[101];
 
-    //seek2(handleArq, 0);
-    //read2(handleArq, buffer_read, 100+1);
-    //printf("Arquivo lido: \n%s\n", buffer_read+1);
+    char buffer_read[size];
+    seek2(handleArq, 0);
+    read2(handleArq, buffer_read, size);
+    printf("Arquivo lido: \n%s\n", buffer_read);
 //    create2("MeuArquivo");
 //    create2("LeoArq\0");
 //    create2("HAHAHA");
