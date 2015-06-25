@@ -34,6 +34,13 @@ int main(int argc, char *argv[])
     read2(handleArq, buffer_read, size);
     printf("Arquivo lido: \n%s\n", buffer_read);
 
+    char buffer2[] = "Isso vai sobreescrever\0";
+    write2(handleArq, buffer2, 23);
+
+    char buffer_read2[size];
+    seek2(handleArq, 0);
+    read2(handleArq, buffer_read2, size);
+    printf("Arquivo lido 2: \n%s\n", buffer_read2);
     /* chdir2("/"); */
     /* DIR2 handler = mkdir2("/bla"); */
     /* chdir2("/bla"); */
