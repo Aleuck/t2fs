@@ -1635,6 +1635,12 @@ int readdir2(DIR2 handle, DIRENT2 *dentry)
             read_block(workingFile->inode->singleIndPtr, (char*) singleInd, superBloco);
             read_records(singleInd[block_index], records);
         } else {
+            block_index -= indices_in_block;
+            if (block_index < indices_in_block * indices_in_block) {
+                read_block(workingFile->inode->doubleIndPtr, (char*) doubleInd, superBloco);
+                read_block(doubleInd[block_index / indices_in_block], (char*) singleInd, superBloco);
+                read_records(singleInd[block_index % indices_in_block], records);
+            }
             return -1;
         }
     }
