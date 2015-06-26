@@ -138,9 +138,9 @@ int find_record_in_index_array(DWORD *dataPtr, int dataPtrLength, char *record_n
 
     for (dataPtr_index = 0; dataPtr_index < dataPtrLength; dataPtr_index++) {
         id_block = dataPtr[dataPtr_index];
-        if (id_block == 0x0FFFFFFFF) {
+        if (id_block == INVALID_POINTER) {
             // TODO: parar de procurar aqui? (return -1)
-            continue;
+            return -1;
         }
         if (find_record_in_block(id_block, record_name, file_record) != -1) {
             return dataPtr_index;
@@ -289,9 +289,7 @@ int replace_record_in_index_array(DWORD *dataPtr, int dataPtrLength, char *repla
     for (dataPtr_index = 0; dataPtr_index < dataPtrLength; dataPtr_index++) {
         id_block = dataPtr[dataPtr_index];
         if (id_block == INVALID_POINTER) {
-            id_block = allocate_block(BLOCK);
-            init_records_block(id_block);
-            dataPtr[dataPtr_index] = id_block;
+            return -1;
         }
         read_records(id_block, records);
         for (record_index = 0; record_index < records_in_block; record_index++) {
@@ -310,30 +308,162 @@ int replace_record_in_index_array(DWORD *dataPtr, int dataPtrLength, char *repla
             break;
         }
     }
-    // if (record_index != records_in_block) {
-    //     records[record_index] = file_record;
-    //     write_records_on_block(id_block, records);
-    //     return 0;
-    // }
+    if (record_index != records_in_block) {
+        records[record_index] = new_record;
+        write_records_on_block(id_block, records);
+        return 0;
+    }
     return -1;
 }
 
 int replace_record_in_inode(struct t2fs_inode *dir_inode, char *replaced_record, struct t2fs_record new_record)
 {
-    if (replace_record_in_index_array(dir_inode->dataPtr, 10, replaced_record, new_record) == 0) {
-        return 0;
-    }
-}
-
-int pop_last_record_from_inode(struct t2fs_inode *dir_inode, struct t2fs_record *last_record)
-{}
-
-int remove_record_from_inode(struct t2fs_inode *dir_inode, char *name)
-{
     int ptrs_in_block = get_num_indices_in_block();
     DWORD singleInd[ptrs_in_block];
     DWORD doubleInd[ptrs_in_block];
     int i;
+
+    if (replace_record_in_index_array(dir_inode->dataPtr, 10, replaced_record, new_record) == 0) {
+        return 0;
+    }
+    // tenta usar indireção simples
+    if (dir_inode->singleIndPtr == INVALID_POINTER) {
+        return -1;
+    }
+    read_block(dir_inode->singleIndPtr, (char*) singleInd, superBloco);
+    if (replace_record_in_index_array(singleInd, ptrs_in_block, replaced_record, new_record) == 0) {
+        write_block(dir_inode->singleIndPtr, (char*) singleInd, superBloco);
+        return 0;
+    }
+
+    // tenta usar indireção dupla
+    if (dir_inode->doubleIndPtr == INVALID_POINTER) {
+        return -1;
+    }
+    read_block(dir_inode->doubleIndPtr, (char*) doubleInd, superBloco);
+    for (i = 0; i < ptrs_in_block; i++) {
+        if (doubleInd[i] == INVALID_POINTER) {
+            return -1;
+        }
+        read_block(doubleInd[i], (char*) singleInd, superBloco);
+        if (replace_record_in_index_array(singleInd, ptrs_in_block, replaced_record, new_record) == 0) {
+            write_block(doubleInd[i], (char*) singleInd, superBloco);
+            return 0;
+        }
+    }
+
+    return -1;
+}
+int pop_last_record_from_index_array(DWORD *dataPtr, int dataPtrLength, struct t2fs_record *last_record)
+{
+    int records_in_block = get_records_in_block();
+    struct t2fs_record records[records_in_block];
+    DWORD id_block;
+    int dataPtr_index;
+    int record_index;
+
+    for (dataPtr_index = 0; dataPtr_index < dataPtrLength; dataPtr_index++) {
+        id_block = dataPtr[dataPtr_index];
+        if (id_block == INVALID_POINTER) {
+            return -1;
+        }
+        read_records(id_block, records);
+        for (record_index = 0; record_index < records_in_block; record_index++) {
+            if (records[record_index].TypeVal == TYPEVAL_INVALIDO) {
+                // encontrado record livre, o ultimo é o anterior.
+                record_index--;
+                break;
+            }
+        }
+        if (record_index != records_in_block) {
+            // Índice livre encontrado
+            break;
+        }
+        if ((dataPtr_index + 1) < records_in_block) {
+            if (dataPtr[dataPtr_index + 1] == INVALID_POINTER) {
+                break;
+            }
+        }
+    }
+    if (record_index != records_in_block) {
+        memcpy(last_record, &records[record_index], sizeof(struct t2fs_record));
+        records[record_index].name[0] = '\0';
+        records[record_index].TypeVal = TYPEVAL_INVALIDO;
+        records[record_index].i_node = -1;
+        write_records_on_block(id_block, records);
+        return 0;
+    }
+    return -1;
+}
+
+int pop_last_record_from_inode(struct t2fs_inode *dir_inode, struct t2fs_record *last_record)
+{
+    int num_indices_in_block = get_num_indices_in_block();
+    int records_in_block = get_records_in_block();
+    DWORD singleInd[num_indices_in_block];
+    DWORD doubleInd[num_indices_in_block];
+    struct t2fs_record records[records_in_block];
+    if (dir_inode->dataPtr[0] == INVALID_POINTER) {
+        return -1;
+    }
+    if (pop_last_record_from_index_array(dir_inode->dataPtr, 10, last_record) == 0) {
+        return 0;
+    }
+    // tenta usar indireção simples
+    if (dir_inode->singleIndPtr == INVALID_POINTER) {
+        read_records(dir_inode->dataPtr[9], records);
+        memcpy(last_record, &records[records_in_block - 1], sizeof(struct t2fs_record));
+        records[records_in_block - 1].name[0] = '\0';
+        records[records_in_block - 1].TypeVal = TYPEVAL_INVALIDO;
+        records[records_in_block - 1].i_node = -1;
+        write_records_on_block(dir_inode->dataPtr[9], records);
+        return 0;
+    }
+    read_block(dir_inode->singleIndPtr, (char*) singleInd, superBloco);
+    if (pop_last_record_from_index_array(singleInd, num_indices_in_block, last_record) == 0) {
+        write_block(dir_inode->singleIndPtr, (char*) singleInd, superBloco);
+        return 0;
+    }
+
+    // tenta usar indireção dupla
+    if (dir_inode->doubleIndPtr == INVALID_POINTER) {
+        read_records(singleInd[num_indices_in_block - 1], records);
+        memcpy(last_record, &records[records_in_block - 1], sizeof(struct t2fs_record));
+        records[records_in_block - 1].name[0] = '\0';
+        records[records_in_block - 1].TypeVal = TYPEVAL_INVALIDO;
+        records[records_in_block - 1].i_node = -1;
+        write_records_on_block(singleInd[num_indices_in_block - 1], records);
+        return 0;
+    }
+    read_block(dir_inode->doubleIndPtr, (char*) doubleInd, superBloco);
+    for (int i = 0; i < num_indices_in_block; i++) {
+        if (doubleInd[i] == INVALID_POINTER) {
+            read_records(singleInd[num_indices_in_block - 1], records);
+            memcpy(last_record, &records[records_in_block - 1], sizeof(struct t2fs_record));
+            records[records_in_block - 1].name[0] = '\0';
+            records[records_in_block - 1].TypeVal = TYPEVAL_INVALIDO;
+            records[records_in_block - 1].i_node = -1;
+            write_records_on_block(singleInd[num_indices_in_block - 1], records);
+        }
+        read_block(doubleInd[i], (char*) singleInd, superBloco);
+        if (pop_last_record_from_index_array(singleInd, num_indices_in_block, last_record) == 0) {
+            write_block(doubleInd[i], (char*) singleInd, superBloco);
+            return 0;
+        }
+    }
+
+    // ULTIMO REGISTRO POSSIVEL! HAHAHAHHAA
+    read_records(singleInd[num_indices_in_block - 1], records);
+    memcpy(last_record, &records[records_in_block - 1], sizeof(struct t2fs_record));
+    records[records_in_block - 1].name[0] = '\0';
+    records[records_in_block - 1].TypeVal = TYPEVAL_INVALIDO;
+    records[records_in_block - 1].i_node = -1;
+    write_records_on_block(singleInd[num_indices_in_block - 1], records);
+    return 0;
+}
+
+int remove_record_from_inode(struct t2fs_inode *dir_inode, char *name)
+{
     struct t2fs_record record_to_remove;
     struct t2fs_record last_record;
 
