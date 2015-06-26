@@ -56,5 +56,33 @@ int main(int argc, char *argv[]) {
     handle = opendir2("/");
     ls(handle);
 
+
+
+    printf("****** Teste foda\n");
+    int count;
+    char str[16];
+    for (count = 0; count < 10; count++){
+        sprintf(str, "%08d", count);
+        mkdir2(str);
+    }
+
+    DIR2 dir = opendir2("/");
+    mkdir2("00000001/2");
+    mkdir2("00000004/2");
+    if(rmdir2("00000001") >=0)
+        printf("Erro, nao pode excluir se diretorio nao vazio");
+    if (rmdir2("00000002") < 0)
+        printf("Erro, deve conseguir apagar");
+    if (rmdir2("00000004/2") < 0)
+        printf("Erro, deve conseguir apagar");
+    if(rmdir2("00000005/.") < 0)
+        printf("Erro, pode excluir diretorio . (nao seu registro)\n");
+    if(rmdir2("00000006/..") >=0)
+        printf("Erro, nao pode excluir diretorio ..");
+    if(rmdir2("00000007/nope") >=0)
+        printf("Erro, nao pode excluir diretorio inexistente");
+
+    ls(dir);
+
     return 0;
 }
