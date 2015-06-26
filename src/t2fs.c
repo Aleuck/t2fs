@@ -598,6 +598,19 @@ int delete_inode(int id_inode)
     return set_on_bitmap(id_inode, 0, INODE, superBloco);
 }
 
+int deallocate_inode(int id_inode)
+{
+    struct t2fs_inode inode = read_i_node(id_inode);
+    int i = 0;
+    while (get_block_id_from_inode(i, &inode) != -1) {
+        int id_block = get_block_id_from_inode(i, &inode);
+        set_on_bitmap(id_block, 0, BLOCK, superBloco);
+        i++;
+    }
+
+    return delete_inode(id_inode);
+}
+
 struct t2fs_inode read_i_node(int id_inode)
 {
     struct t2fs_inode inode;//={0};
@@ -842,7 +855,7 @@ int identify2(char *name, int size)
     checkSuperBloco();
 
     int i = 0;
-    char ids[] = "Alexandre Leuck (...), Gianei Sebastiany (213502)"
+    char ids[] = "Alexandre Leuck (220493), Gianei Sebastiany (213502)"
         " e Leonardo Hahn (207684)\0";
 
     while (ids[i] != '\0' && i < size - 1) {
@@ -864,34 +877,23 @@ FILE2 create2(char *filename)
 {
     checkSuperBloco();
 
-    //acha inode
-    //char *before_filename = get_string_before_last_bar(filename);
-    //struct t2fs_inode creating_inode;
-    // if (*before_filename != 0){ //se nome não tem barras
-    //     find_inode_from_path(superBloco, filename, current_dir, &creating_inode);
-    // } else {
-    //     creating_inode = current_dir;
-    // }
-
-    //char *striped_filename = get_string_after_bar(filename);
-
-    //if (!is_name_consistent(striped_filename)) {
     if (!is_name_consistent(filename)) {
-        printf("ERRO: nome inconsistente\n");
+        printf("create2: inconsistent name\n");
         return -1;
     }
 
-    struct t2fs_record *new_file_record;
-    struct t2fs_inode *new_file_inode;
+    struct t2fs_record *new_file_record = malloc(sizeof(*new_file_record));
+    struct t2fs_inode *new_file_inode   = malloc(sizeof(*new_file_inode));
+
+    // arquivo existente?
+    if (find_record_in_inode(current_dir, filename, new_file_record) != -1) {
+        free(new_file_record);
+        printf("create2: cannot create directory ‘%s’: File exists\n", filename);
+        return -1;
+    }
 
     int idx = get_free_bit_on_bitmap(INODE, superBloco);
-    //printf("Primeiro indice livre de inode e %d", idx);
-
-    // TODO: No momento só guarda no diretório corrente,
-    //       não permite passagem do caminho completo.
-
     // Cria o record para o arquivo
-    new_file_record                 = malloc(sizeof *new_file_record);
     new_file_record->TypeVal        = TYPEVAL_REGULAR;
     new_file_record->i_node         = idx;
     new_file_record->blocksFileSize = 1;         // ocupa 1 inode quando criado
@@ -900,7 +902,6 @@ FILE2 create2(char *filename)
     memcpy(new_file_record->name, filename, 31);
 
     // Cria inode para arquivo
-    new_file_inode = malloc(sizeof *new_file_inode);
     initialize_inode(new_file_inode);
     write_inode(idx, new_file_inode);
     free(new_file_inode);
@@ -922,8 +923,7 @@ int delete2(char *filename)
 
     find_record_in_inode(dir_inode, filename, &file_record);
     remove_record_from_inode(&dir_inode, filename);
-
-    delete_inode(file_record.i_node);
+    deallocate_inode(file_record.i_node);
 
     return 0;
 }
