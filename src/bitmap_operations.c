@@ -66,7 +66,6 @@ int set_on_bitmap(unsigned int id_bit, short int bit_state, bitmap_type type, st
     }
 
     if (get_bitmap_state(id_bit, type, superBloco) == bit_state) {
-        printf("\nNao eh necessario modificar o estado.\n");
         return 0;
     }
 
