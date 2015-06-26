@@ -436,7 +436,8 @@ int pop_last_record_from_inode(struct t2fs_inode *dir_inode, struct t2fs_record 
         return 0;
     }
     read_block(dir_inode->doubleIndPtr, (char*) doubleInd, superBloco);
-    for (int i = 0; i < num_indices_in_block; i++) {
+    int i;
+    for (i = 0; i < num_indices_in_block; i++) {
         if (doubleInd[i] == INVALID_POINTER) {
             read_records(singleInd[num_indices_in_block - 1], records);
             memcpy(last_record, &records[records_in_block - 1], sizeof(struct t2fs_record));
