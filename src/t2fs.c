@@ -1022,9 +1022,6 @@ int read2(FILE2 handle, char *buffer, int size)
     unsigned int b;
     unsigned int last_position = file->record->bytesFileSize;
 
-    if ((file->position + size) > last_position) {
-        printf("ERRO: Tentando ler apos final do arquivo\n");
-    }
     // Le todos os blocos que fazem parte de buffer
     int last_i = 0;
     int bytes_read = 0;
@@ -1044,9 +1041,8 @@ int read2(FILE2 handle, char *buffer, int size)
         } else {                         // Se for o ultimo bloco
             while (bytes_read != size) {
                 if (file->position < last_position) { // Se a posicao for menor que o tamanho do arquivo.
-                    buffer[bytes_read] = buf[i];
+                    buffer[bytes_read] = buf[file->position - (superBloco.BlockSize * b)];
                     bytes_read++;
-                    i++;
                     file->position++;
                 }
             }
@@ -1091,7 +1087,6 @@ int get_block_id_from_inode(int relative_index, struct t2fs_inode *inode)
     if (relative_index < 10) {
         pointer = inode->dataPtr[relative_index];
         if (pointer == INVALID_POINTER) {
-            printf("WARNING: inode nao contem bloco relativo de indice %d\n", relative_index);
             return -1;
         } else {
             return pointer;
@@ -1346,13 +1341,6 @@ int write2(FILE2 handle, char *buffer, int size)
         }
         to_write[b][superBloco.BlockSize-1] = '\0';  // Força fim de linha
         file->position++;
-    }
-    int i;
-    for (b = 0; b < blocks_to_read; b++) {
-        for (i = 0; i < superBloco.BlockSize-1; i++) {
-            printf("%c", to_write[b][i]);
-        }
-        printf("\n");
     }
     for (b = 0; b < blocks_to_read; b++) {
         int id = get_block_id_from_inode(first_block_id + b, file->inode);
