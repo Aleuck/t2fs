@@ -747,34 +747,23 @@ FILE2 create2(char *filename)
 {
     checkSuperBloco();
 
-    //acha inode
-    //char *before_filename = get_string_before_last_bar(filename);
-    //struct t2fs_inode creating_inode;
-    // if (*before_filename != 0){ //se nome não tem barras
-    //     find_inode_from_path(superBloco, filename, current_dir, &creating_inode);
-    // } else {
-    //     creating_inode = current_dir;
-    // }
-
-    //char *striped_filename = get_string_after_bar(filename);
-
-    //if (!is_name_consistent(striped_filename)) {
     if (!is_name_consistent(filename)) {
-        printf("ERRO: nome inconsistente\n");
+        printf("create2: inconsistent name\n");
         return -1;
     }
 
-    struct t2fs_record *new_file_record;
-    struct t2fs_inode *new_file_inode;
+    struct t2fs_record *new_file_record = malloc(sizeof(*new_file_record));
+    struct t2fs_inode *new_file_inode   = malloc(sizeof(*new_file_inode));
+
+    // arquivo existente?
+    if (find_record_in_inode(current_dir, filename, new_file_record) != -1) {
+        free(new_file_record);
+        printf("create2: cannot create directory ‘%s’: File exists\n", filename);
+        return -1;
+    }
 
     int idx = get_free_bit_on_bitmap(INODE, superBloco);
-    //printf("Primeiro indice livre de inode e %d", idx);
-
-    // TODO: No momento só guarda no diretório corrente,
-    //       não permite passagem do caminho completo.
-
     // Cria o record para o arquivo
-    new_file_record                 = malloc(sizeof *new_file_record);
     new_file_record->TypeVal        = TYPEVAL_REGULAR;
     new_file_record->i_node         = idx;
     new_file_record->blocksFileSize = 1;         // ocupa 1 inode quando criado
@@ -783,7 +772,6 @@ FILE2 create2(char *filename)
     memcpy(new_file_record->name, filename, 31);
 
     // Cria inode para arquivo
-    new_file_inode = malloc(sizeof *new_file_inode);
     initialize_inode(new_file_inode);
     write_inode(idx, new_file_inode);
     free(new_file_inode);
