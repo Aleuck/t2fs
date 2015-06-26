@@ -1606,35 +1606,56 @@ OPEN_FILE* get_file_from_list(int handle, file_type type)
     return searcher;
 }
 
+
 int readdir2(DIR2 handle, DIRENT2 *dentry)
 {
     checkSuperBloco();
-    struct t2fs_record records[get_records_in_block()]; //sempre há X records por bloco
+    int records_in_block = get_records_in_block();
+    int indices_in_block = get_num_indices_in_block();
+    struct t2fs_record records[records_in_block]; //sempre há X records por bloco
     OPEN_FILE* workingFile = get_file_from_list(handle, DIR_TYPE);
+
+    DWORD singleInd[indices_in_block];
+    DWORD doubleInd[indices_in_block];
 
     if (workingFile == NULL) {
         return -1;
     }
 
+    unsigned int record_index = workingFile->position % records_in_block;
+    unsigned int block_index = workingFile->position / records_in_block;
+    // está nos ponteiros diretos?
+    if (block_index < 10) {
+        read_records(workingFile->inode->dataPtr[block_index], records);
+    } else {
+        block_index -= 10;
+        // indireção
+        if (block_index < indices_in_block) {
+            //block_index / (records_in_block * indices_in_block)
+            read_block(workingFile->inode->singleIndPtr, (char*) singleInd, superBloco);
+            read_records(singleInd[block_index], records);
+        } else {
+            return -1;
+        }
+    }
 //    struct t2fs_inode dir_inode = workingFile->inode);
-    read_records(workingFile->inode->dataPtr[0], records);
 
     //read_records(workingFile->inode->dataPtr[0], records); //lê records apontados pelo primeiro ponteiro de I-node
 
-    if (records[workingFile->position].TypeVal == 1 || records[workingFile->position].TypeVal == 2) { //entrada válida
-        memcpy(dentry->name,records[workingFile->position].name,31);
-        dentry->fileType = records[workingFile->position].TypeVal;
-        dentry->fileSize = records[workingFile->position].bytesFileSize;
+    if (records[record_index].TypeVal == 1 || records[record_index].TypeVal == 2) { //entrada válida
+        memcpy(dentry->name,records[record_index].name,31);
+        dentry->fileType = records[record_index].TypeVal;
+        dentry->fileSize = records[record_index].bytesFileSize;
 
         workingFile->position++;
 
         return 0;
     } else { //não ha registro aqui
-        for (workingFile->position++; workingFile->position < get_records_in_block(); workingFile->position++) {
-            if (records[workingFile->position].TypeVal == 1 || records[workingFile->position].TypeVal == 2) {
-                memcpy(dentry->name,records[workingFile->position].name,31);
-                dentry->fileType = records[workingFile->position].TypeVal;
-                dentry->fileSize = records[workingFile->position].bytesFileSize;
+        for (workingFile->position++; workingFile->position < records_in_block; workingFile->position++) {
+            if (records[record_index].TypeVal == 1 || records[record_index].TypeVal == 2) {
+                memcpy(dentry->name,records[record_index].name,31);
+                dentry->fileType = records[record_index].TypeVal;
+                dentry->fileSize = records[record_index].bytesFileSize;
                 workingFile->position++;
                 return 0;
             }
