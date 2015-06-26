@@ -14,6 +14,7 @@ int main(int argc, char *argv[]) {
     FILE2 file = create2("bigfile");
     int count;
     char str[9];
+    str[9] = '\0';
     if (file >= 0) {
         for (count = 0; count < 50; count++) {
             sprintf(str, "%08d", count);
@@ -24,11 +25,13 @@ int main(int argc, char *argv[]) {
     }
     seek2(file, 0);
     read2(file, str, 8);
-    str[9] = '\0';
+    printf("%s\n", str);
+    read2(file, str, 8);
+    printf("%s\n", str);
+    read2(file, str, 8);
     printf("%s\n", str);
     seek2(file, 8*40);
     read2(file, str, 8);
-    str[9] = '\0';
     printf("Deve ser 39: %s\n", str);
 
     close2(file);

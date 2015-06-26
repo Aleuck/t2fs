@@ -19,22 +19,15 @@ int main(int argc, char *argv[]) {
         printf("Nao pode permitir abrir arquivos");
     }
 
-
     if (dir >= 0){
         printf("Erro nao identificado! Diretorio nao existente nao pode ser aberto\n");
     }
 
-//    mkdir2("Dir1");
-
-    //Dir 1 deve ter sido criado previamente
     dir = opendir2("Dir1");
 
-    //TODO criar diretórios indefinidamente
     ls(dir);
 
     closedir2(dir);
-
-//    print_bitmap(BLOCK, get_superbloco());
 
     return 0;
 

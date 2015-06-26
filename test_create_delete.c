@@ -30,8 +30,8 @@ int main(int argc, char *argv[]) {
         printf("Erro não identificado! Nao deve permitir nome muito grande\n");
 
     handleArq3 = create2("./././arquivo3");
-    if (handleArq3 < 0)
-        printf("Erro não identificado! Deve permitir nome de arquivo com barras?\n");
+    if (handleArq3 >= 0)
+        printf("Erro não identificado! Não deve permitir nome de arquivo com barras?\n");
 
     printf("Raiz depois de criar\n");
     handle = opendir2("/"); //handle precisa ler de novo pra resetar o pointer dele

@@ -20,13 +20,9 @@ int main(int argc, char *argv[]) {
 
     //Arquivo 1 deve ter sido criado previamente
 
-//    ls(opendir2("/"));
-//    mkdir2("dir");
-    //dir deve existir
-
-    if (open2("dir") >= 0){
-        printf("Nao pode permitir abrir diretorios");
-    }
+//    if (open2("dir") >= 0){
+//        printf("Nao pode permitir abrir diretorios");
+//    }
     file = open2("Arquivo1");
 
     if (file >= 0){
@@ -40,16 +36,11 @@ int main(int argc, char *argv[]) {
         printf("Erro! Nao conseguiu abrir arquivo\n");
     }
 
-    //Arquivo 1 deve ter sido criado previamente
     close2(file);
     char buffer[] = "5555";
     if (write2(file, buffer, 4) >= 0){
         printf("Erro! Escreveu mesmo depois de fechado!\n");
     }
-    //TODO ao gravar arquivo grande, deve preencher vários blocos
-//    print_bitmap(BLOCK, get_superbloco());
-
-
 
     return 0;
 

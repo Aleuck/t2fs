@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include "./include/t2fs.h"
-#include "include/bitmap_operations.h"
 
 void ls(DIR2 dirHandle)
 {
@@ -19,8 +18,6 @@ void print_actual_path() {
 }
 
 int main(int argc, char *argv[]) {
-//    print_bitmap(BLOCK, get_superbloco());
-//    return 0;
     print_actual_path();
 
     DIR2 dir1 = mkdir2("dir1");
