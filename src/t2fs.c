@@ -881,34 +881,35 @@ FILE2 create2(char *filename)
         return -1;
     }
 
-    struct t2fs_record *new_file_record = malloc(sizeof(*new_file_record));
-    struct t2fs_inode *new_file_inode   = malloc(sizeof(*new_file_inode));
+    struct t2fs_record new_file_record;
+    struct t2fs_inode new_file_inode;
 
     // arquivo existente?
-    if (find_record_in_inode(current_dir, filename, new_file_record) != -1) {
-        free(new_file_record);
+    if (find_record_in_inode(current_dir, filename, &new_file_record) != -1) {
         printf("create2: cannot create directory ‘%s’: File exists\n", filename);
         return -1;
     }
 
     int idx = get_free_bit_on_bitmap(INODE, superBloco);
+    if (idx == -1) {
+        return -1;
+    }
     // Cria o record para o arquivo
-    new_file_record->TypeVal        = TYPEVAL_REGULAR;
-    new_file_record->i_node         = idx;
-    new_file_record->blocksFileSize = 1;         // ocupa 1 inode quando criado
-    new_file_record->bytesFileSize  = 0;        // TODO-: 31 bytes?? ou 0? --> tamanho do arquivo = tamanho bloco x blocs usados
-    //memcpy(new_file_record->name, striped_filename, 31);
-    memcpy(new_file_record->name, filename, 31);
+    new_file_record.TypeVal        = TYPEVAL_REGULAR;
+    new_file_record.i_node         = idx;
+    new_file_record.blocksFileSize = 1;         // ocupa 1 inode quando criado
+    new_file_record.bytesFileSize  = 0;        // TODO-: 31 bytes?? ou 0? --> tamanho do arquivo = tamanho bloco x blocs usados
+    //memcpy(new_file_record.name, striped_filename, 31);
+    memcpy(new_file_record.name, filename, 31);
 
     // Cria inode para arquivo
-    initialize_inode(new_file_inode);
-    write_inode(idx, new_file_inode);
-    free(new_file_inode);
+    initialize_inode(&new_file_inode);
+    write_inode(idx, &new_file_inode);
 
     struct t2fs_inode current_dir = read_i_node(current_path.current->record.i_node);
 
     //add_record_to_inode(creating_inode, *new_file_record);
-    add_record_to_inode(&current_dir, *new_file_record);
+    add_record_to_inode(&current_dir, new_file_record);
     write_inode(current_path.current->record.i_node, &current_dir);
 
     return open2(filename);

@@ -12,9 +12,9 @@
 int get_bitmap_state(unsigned int id_bit, bitmap_type type, struct t2fs_superbloco superBloco)
 {
     if (type == BLOCK && id_bit >= superBloco.NofBlocks) {
-        printf("get_bitmap_state(..) com bloco maior do que o numero de blocos do disco.\n");
+        printf("get_bitmap_state(..) com bloco maior do que o numero de blocos do disco: %d.\n",id_bit);
         return -1;
-    } else if (type == INODE && id_bit >= superBloco.NofBlocks) {
+    } else if (type == INODE && id_bit >= (superBloco.BlockSize * (superBloco.FirstDataBlock - superBloco.InodeBlock)) / 64) {
         printf("git_bitmap_state(..) com inode maior do que o numero de inodes no disco.\n");
         return -1;
     }
@@ -57,7 +57,7 @@ int set_on_bitmap(unsigned int id_bit, short int bit_state, bitmap_type type, st
     if (type == BLOCK && id_bit >= superBloco.NofBlocks) {
         printf("Tentando setar o bloco %d que nao existe.\n", id_bit);
         return -1;
-    } else if (type == INODE && id_bit >= superBloco.NofBlocks) {
+    } else if (type == INODE && id_bit >= (superBloco.BlockSize * (superBloco.FirstDataBlock - superBloco.InodeBlock)) / 64) {
         printf("Tentando setar o inode %d que nao existe.\n", id_bit);
         return -1;
     } else if (bit_state != 0 && bit_state != 1) {
@@ -116,6 +116,11 @@ int get_free_bit_on_bitmap(bitmap_type type, struct t2fs_superbloco superBloco)
     int idx = 0;
     while (get_bitmap_state(idx, type, superBloco) != 0) {
         idx++;
+        if (type == BLOCK && idx >= superBloco.NofBlocks) {
+            return -1;
+        } else if (type == INODE && idx >= superBloco.NofBlocks) {
+            return -1;
+        }
     }
     return idx;
 }
