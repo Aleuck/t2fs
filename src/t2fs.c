@@ -796,7 +796,6 @@ int add_opened_file_to_list(OPEN_FILE *open_file, file_type type)
 {
     OPEN_FILE *searcher;
     if (type == FILE_TYPE) {
-        printf("adding opened file to list\n");
         if (open_files->first == NULL) { // Lista está vazia
             open_files->first = open_file;
             open_files->size++;
@@ -815,7 +814,6 @@ int add_opened_file_to_list(OPEN_FILE *open_file, file_type type)
         open_files->size++;
         return 0;
     } else {
-        printf("adding opened dir to list\n");
         if (open_directories->first == NULL) {
             open_directories->first = open_file;
             open_directories->size++;
@@ -984,7 +982,6 @@ int close2(FILE2 handle)
         free(searcher->inode);
         free(searcher->record);
         free(searcher);
-        printf("Arquivo %d fechado com sucesso\n", handle);
         return 0;
     }
 
@@ -1003,7 +1000,6 @@ int close2(FILE2 handle)
         free(searcher->next);
         searcher = NULL;
         open_files->size--;
-        printf("Arquivo %d fechado com sucesso\n", handle);
         return 0;
     }
     OPEN_FILE *aux = searcher->next;
@@ -1012,7 +1008,6 @@ int close2(FILE2 handle)
     free(aux->inode);
     free(aux);
     open_files->size--;
-    printf("Arquivo %d fechado com sucesso\n", handle);
     return 0;
 }
 
@@ -1555,23 +1550,18 @@ DIR2 opendir2(char *pathname)
     memset(&path, 0, sizeof(PATH));
 
     // allows relative pathnames
-    printf("opendir2: copy_path:\n");
     copy_path(&path, &current_path);
 
-    printf("opendir2: chdir2_generic:\n");
     if (chdir2_generic(&path, pathname) != 0) {
         return -1;
     }
 
-    printf("opendir2: check open count:\n");
     if ((open_files->size + open_directories->size) == MAX_OPEN_FILES) {
         printf("ERRO: numero maximo de arquivos abertos (20)\n");
         return -1;
     }
-    printf("opendir2: mallocs:\n");
     OPEN_FILE *open_file = malloc(sizeof *open_file);
     open_file->inode    = malloc(sizeof(struct t2fs_inode));
-    printf("opendir2: read_i_node:\n");
     *(open_file->inode)    = read_i_node(path.current->record.i_node);
     open_file->position = 0;
     open_file->handle   = current_handle;
@@ -1580,7 +1570,6 @@ DIR2 opendir2(char *pathname)
         open_file->parent_inode = path.current->previous->record.i_node;
     else
         open_file->parent_inode = 0;
-    printf("opendir2: read_i_node:\n");
     add_opened_file_to_list(open_file, DIR_TYPE);
     current_handle++;
     return current_handle-1;
@@ -1680,7 +1669,6 @@ int closedir2(DIR2 handle)
         free(searcher->inode);
 //        free(searcher->record); //TODO estava gerando erro... why?
         free(searcher);
-        printf("Diretorio %d fechado com sucesso\n", handle);
         return 0;
     }
 
@@ -1699,7 +1687,6 @@ int closedir2(DIR2 handle)
         free(searcher->next);
         searcher = NULL;
         open_directories->size--;
-        printf("Diretorio %d fechado com sucesso\n", handle);
         return 0;
     }
     OPEN_FILE *aux = searcher->next;
@@ -1708,7 +1695,6 @@ int closedir2(DIR2 handle)
     free(aux->inode);
     free(aux);
     open_directories->size--;
-    printf("Diretorio %d fechado com sucesso\n", handle);
     return 0;
 }
 
