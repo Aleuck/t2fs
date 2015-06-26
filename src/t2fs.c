@@ -725,7 +725,7 @@ int identify2(char *name, int size)
     checkSuperBloco();
 
     int i = 0;
-    char ids[] = "Alexandre Leuck (...), Gianei Sebastiany (213502)"
+    char ids[] = "Alexandre Leuck (220493), Gianei Sebastiany (213502)"
         " e Leonardo Hahn (207684)\0";
 
     while (ids[i] != '\0' && i < size - 1) {
